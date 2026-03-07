@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+    <h2>{{ 'Добавить компонент' if action == 'add' else 'Редактировать компонент' }}</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <form method="POST" action="{{ url_for('add_component') if action == 'add' else url_for('edit_component', id=component.id) }}">
+        {{ form.hidden_tag() }}
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.name.label }} {{ form.name(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+                {{ form.group_id.label }} {{ form.group_id(class="form-control", id="group_id") }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.subgroup_id.label }} {{ form.subgroup_id(class="form-control", id="subgroup_id") }}
+            </div>
+            <div class="col-md-6">
+                {{ form.type_id.label }} {{ form.type_id(class="form-control", id="type_id") }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.housing_id.label }} {{ form.housing_id(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+                {{ form.manufacturer.label }} {{ form.manufacturer(class="form-control") }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.quantity.label }} {{ form.quantity(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+                {{ form.price.label }} {{ form.price(class="form-control") }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.arrival_date.label }} {{ form.arrival_date(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+                {{ form.location.label }} {{ form.location(class="form-control") }}
+            </div>
+        </div>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                {{ form.nominal_value.label }} {{ form.nominal_value(class="form-control") }}
+            </div>
+            <div class="col-md-6">
+                {{ form.unit.label }} {{ form.unit(class="form-control", id="unit") }}
+            </div>
+        </div>
+        <div class="mb-3">
+            {{ form.additional_parameters.label }} {{ form.additional_parameters(class="form-control") }}
+        </div>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+    </form>
+</div>
+<script>
+document.getElementById('group_id').addEventListener('change', function() {
+    const groupId = this.value;
+    const subgroupSelect = document.getElementById('subgroup_id');
+    const typeSelect = document.getElementById('type_id');
+    const unitSelect = document.getElementById('unit');
+    
+    subgroupSelect.innerHTML = '<option value="0">Выберите подгруппу</option>';
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    
+    if (groupId) {
+        fetch(`/get_subgroups/${groupId}`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(subgroup => {
+                    const option = document.createElement('option');
+                    option.value = subgroup.id;
+                    option.textContent = subgroup.name;
+                    subgroupSelect.appendChild(option);
+                });
+            });
+    }
+});
+
+document.getElementById('subgroup_id').addEventListener('change', function() {
+    const subgroupId = this.value;
+    const typeSelect = document.getElementById('type_id');
+    const unitSelect = document.getElementById('unit');
+    
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    
+    if (subgroupId) {
+        fetch(`/get_types/${subgroupId}`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.id;
+                    option.textContent = type.name;
+                    typeSelect.appendChild(option);
+                });
+            });
+        fetch(`/get_units/${subgroupId}`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(unit => {
+                    const option = document.createElement('option');
+                    option.value = unit.unit;
+                    option.textContent = unit.unit;
+                    unitSelect.appendChild(option);
+                });
+            });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,175 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4" style="max-width:900px">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-pencil-square me-2 text-primary"></i>Редактировать: {{ component.name }}</h2>
+        <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Назад
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST">
+                {{ form.hidden_tag() }}
+
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-info-circle me-1"></i>Основная информация
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                    </div>
+                    <div class="col-md-6">
+                        {{ form.manufacturer.label(class="form-label") }}
+                        {{ form.manufacturer(class="form-control") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-diagram-3 me-1"></i>Классификация
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        {{ form.group_id.label(class="form-label") }}
+                        {{ form.group_id(class="form-select", id="group_id") }}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.subgroup_id.label(class="form-label") }}
+                        {{ form.subgroup_id(class="form-select", id="subgroup_id") }}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.type_id.label(class="form-label") }}
+                        {{ form.type_id(class="form-select", id="type_id") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-cpu me-1"></i>Технические параметры
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        {{ form.housing_id.label(class="form-label") }}
+                        {{ form.housing_id(class="form-select") }}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.nominal_value.label(class="form-label") }}
+                        {{ form.nominal_value(class="form-control") }}
+                    </div>
+                    <div class="col-md-4">
+                        {{ form.unit.label(class="form-label") }}
+                        {{ form.unit(class="form-select", id="unit") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-archive me-1"></i>Склад и стоимость
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        {{ form.quantity.label(class="form-label") }}
+                        {{ form.quantity(class="form-control") }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.price.label(class="form-label") }}
+                        {{ form.price(class="form-control") }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.arrival_date.label(class="form-label") }}
+                        {{ form.arrival_date(class="form-control") }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ form.location.label(class="form-label") }}
+                        {{ form.location(class="form-control") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <div class="mb-4">
+                    {{ form.additional_parameters.label(class="form-label") }}
+                    {{ form.additional_parameters(class="form-control", rows=3) }}
+                </div>
+
+                <div class="d-flex gap-2">
+                    {{ form.submit(class="btn btn-primary") }}
+                    <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('group_id').addEventListener('change', function() {
+    var groupId = this.value;
+    var subgroupSelect = document.getElementById('subgroup_id');
+    var typeSelect = document.getElementById('type_id');
+    var unitSelect = document.getElementById('unit');
+    subgroupSelect.innerHTML = '<option value="0">Выберите подгруппу</option>';
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    if (groupId) {
+        fetch('/get_subgroups/' + groupId)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(subgroup => {
+                    var option = document.createElement('option');
+                    option.value = subgroup.id;
+                    option.text = subgroup.name;
+                    subgroupSelect.appendChild(option);
+                });
+            });
+    }
+});
+
+document.getElementById('subgroup_id').addEventListener('change', function() {
+    var subgroupId = this.value;
+    var typeSelect = document.getElementById('type_id');
+    var unitSelect = document.getElementById('unit');
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    if (subgroupId) {
+        fetch('/get_types/' + subgroupId)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(type => {
+                    var option = document.createElement('option');
+                    option.value = type.id;
+                    option.text = type.name;
+                    typeSelect.appendChild(option);
+                });
+            });
+        fetch('/get_units/' + subgroupId)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(unit => {
+                    var option = document.createElement('option');
+                    option.value = unit.unit;
+                    option.text = unit.unit;
+                    unitSelect.appendChild(option);
+                });
+            });
+    }
+});
+</script>
+{% endblock %}

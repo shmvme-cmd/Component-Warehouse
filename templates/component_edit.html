@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card bg-dark text-white border-secondary">
+    <div class="card-body">
+        <h1 class="card-title mb-4">Редактировать компонент: {{ component.name }}</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+            {{ form.hidden_tag() }}
+            <div class="mb-3">
+                {{ form.name.label(class="form-label") }}
+                {{ form.name(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.group_id.label(class="form-label") }}
+                {{ form.group_id(class="form-select bg-dark text-white border-secondary", id="group_id") }}
+            </div>
+            <div class="mb-3">
+                {{ form.subgroup_id.label(class="form-label") }}
+                {{ form.subgroup_id(class="form-select bg-dark text-white border-secondary", id="subgroup_id") }}
+            </div>
+            <div class="mb-3">
+                {{ form.type_id.label(class="form-label") }}
+                {{ form.type_id(class="form-select bg-dark text-white border-secondary", id="type_id") }}
+            </div>
+            <div class="mb-3">
+                {{ form.housing_id.label(class="form-label") }}
+                {{ form.housing_id(class="form-select bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.manufacturer.label(class="form-label") }}
+                {{ form.manufacturer(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.quantity.label(class="form-label") }}
+                {{ form.quantity(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.price.label(class="form-label") }}
+                {{ form.price(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.arrival_date.label(class="form-label") }}
+                {{ form.arrival_date(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.location.label(class="form-label") }}
+                {{ form.location(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.nominal_value.label(class="form-label") }}
+                {{ form.nominal_value(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            <div class="mb-3">
+                {{ form.unit.label(class="form-label") }}
+                {{ form.unit(class="form-select bg-dark text-white border-secondary", id="unit") }}
+            </div>
+            <div class="mb-3">
+                {{ form.additional_parameters.label(class="form-label") }}
+                {{ form.additional_parameters(class="form-control bg-dark text-white border-secondary") }}
+            </div>
+            {{ form.submit(class="btn btn-warning") }}
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('group_id').addEventListener('change', function() {
+    var groupId = this.value;
+    var subgroupSelect = document.getElementById('subgroup_id');
+    var typeSelect = document.getElementById('type_id');
+    var unitSelect = document.getElementById('unit');
+    subgroupSelect.innerHTML = '<option value="0">Выберите подгруппу</option>';
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    if (groupId) {
+        fetch('/get_subgroups/' + groupId)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(subgroup => {
+                    var option = document.createElement('option');
+                    option.value = subgroup.id;
+                    option.text = subgroup.name;
+                    subgroupSelect.appendChild(option);
+                });
+            });
+    }
+});
+
+document.getElementById('subgroup_id').addEventListener('change', function() {
+    var subgroupId = this.value;
+    var typeSelect = document.getElementById('type_id');
+    var unitSelect = document.getElementById('unit');
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    if (subgroupId) {
+        fetch('/get_types/' + subgroupId)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(type => {
+                    var option = document.createElement('option');
+                    option.value = type.id;
+                    option.text = type.name;
+                    typeSelect.appendChild(option);
+                });
+            });
+        fetch('/get_units/' + subgroupId)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(unit => {
+                    var option = document.createElement('option');
+                    option.value = unit.unit;
+                    option.text = unit.unit;
+                    unitSelect.appendChild(option);
+                });
+            });
+    }
+});
+</script>
+{% endblock %}

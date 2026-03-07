@@ -1,0 +1,188 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4" style="max-width:900px">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="bi bi-{{ 'plus-circle' if action == 'add' else 'pencil-square' }} me-2 text-primary"></i>
+            {{ 'Добавить компонент' if action == 'add' else 'Редактировать компонент' }}
+        </h2>
+        <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Назад
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('components.add') if action == 'add' else url_for('components.edit', id=component.id) }}">
+                {{ form.hidden_tag() }}
+
+                <!-- Основная информация -->
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-info-circle me-1"></i>Основная информация
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">{{ form.name.label }}</label>
+                        {{ form.name(class="form-control") }}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">{{ form.manufacturer.label }}</label>
+                        {{ form.manufacturer(class="form-control") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <!-- Классификация -->
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-diagram-3 me-1"></i>Классификация
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form.group_id.label }}</label>
+                        {{ form.group_id(class="form-select", id="group_id") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form.subgroup_id.label }}</label>
+                        {{ form.subgroup_id(class="form-select", id="subgroup_id") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form.type_id.label }}</label>
+                        {{ form.type_id(class="form-select", id="type_id") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <!-- Технические параметры -->
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-cpu me-1"></i>Технические параметры
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form.housing_id.label }}</label>
+                        {{ form.housing_id(class="form-select") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form.nominal_value.label }}</label>
+                        {{ form.nominal_value(class="form-control") }}
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">{{ form.unit.label }}</label>
+                        {{ form.unit(class="form-select", id="unit") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <!-- Склад и цена -->
+                <h6 class="text-muted text-uppercase fw-semibold mb-3" style="font-size:.7rem;letter-spacing:.07em">
+                    <i class="bi bi-archive me-1"></i>Склад и стоимость
+                </h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.quantity.label }}</label>
+                        {{ form.quantity(class="form-control") }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.price.label }}</label>
+                        {{ form.price(class="form-control") }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.arrival_date.label }}</label>
+                        {{ form.arrival_date(class="form-control") }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">{{ form.location.label }}</label>
+                        {{ form.location(class="form-control") }}
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <!-- Доп. параметры -->
+                <div class="mb-4">
+                    <label class="form-label">{{ form.additional_parameters.label }}</label>
+                    {{ form.additional_parameters(class="form-control", rows=3) }}
+                    <div class="form-text">JSON или текстовое описание дополнительных параметров</div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2 me-1"></i>Сохранить
+                    </button>
+                    <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary">Отмена</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+document.getElementById('group_id').addEventListener('change', function() {
+    const groupId = this.value;
+    const subgroupSelect = document.getElementById('subgroup_id');
+    const typeSelect = document.getElementById('type_id');
+    const unitSelect = document.getElementById('unit');
+    
+    subgroupSelect.innerHTML = '<option value="0">Выберите подгруппу</option>';
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    
+    if (groupId) {
+        fetch(`/get_subgroups/${groupId}`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(subgroup => {
+                    const option = document.createElement('option');
+                    option.value = subgroup.id;
+                    option.textContent = subgroup.name;
+                    subgroupSelect.appendChild(option);
+                });
+            });
+    }
+});
+
+document.getElementById('subgroup_id').addEventListener('change', function() {
+    const subgroupId = this.value;
+    const typeSelect = document.getElementById('type_id');
+    const unitSelect = document.getElementById('unit');
+    
+    typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
+    unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
+    
+    if (subgroupId) {
+        fetch(`/get_types/${subgroupId}`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(type => {
+                    const option = document.createElement('option');
+                    option.value = type.id;
+                    option.textContent = type.name;
+                    typeSelect.appendChild(option);
+                });
+            });
+        fetch(`/get_units/${subgroupId}`)
+            .then(response => response.json())
+            .then(data => {
+                data.forEach(unit => {
+                    const option = document.createElement('option');
+                    option.value = unit.unit;
+                    option.textContent = unit.unit;
+                    unitSelect.appendChild(option);
+                });
+            });
+    }
+});
+</script>
+{% endblock %}

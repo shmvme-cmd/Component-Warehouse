@@ -1,0 +1,235 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-person-gear me-2 text-primary"></i>Редактировать пользователя</h2>
+            <p class="text-muted mb-0">{{ user.username }}</p>
+        </div>
+        <a href="{{ url_for('users.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Назад к списку
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} alert-dismissible fade show" role="alert">
+                    <i class="bi bi-{{ 'exclamation-triangle' if category == 'danger' else 'check-circle' }} me-2"></i>
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Форма редактирования -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Редактирование пользователя</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                {{ form.hidden_tag() }}
+                
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">{{ form.username.label }}</label>
+                            {{ form.username(class="form-control") }}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">{{ form.password.label }}</label>
+                            {{ form.password(class="form-control", placeholder="Оставьте пустым, чтобы не менять") }}
+                            <small class="form-text">Оставьте пустым, чтобы не менять пароль</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <label class="form-label">{{ form.role.label }}</label>
+                            {{ form.role(class="form-select") }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Таблица прав доступа -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="bi bi-shield-lock me-2 text-primary"></i>Права доступа</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="text-center">Раздел</th>
+                                        <th scope="col" class="text-center">Создание</th>
+                                        <th scope="col" class="text-center">Редактирование</th>
+                                        <th scope="col" class="text-center">Удаление</th>
+                                        <th scope="col" class="text-center">Просмотр</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Группы -->
+                                    <tr>
+                                        <td class="fw-bold text-warning">
+                                            <i class="bi bi-collection me-2"></i>Группы
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_create_groups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_edit_groups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_delete_groups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_view_groups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+                                    <!-- Подгруппы -->
+                                    <tr>
+                                        <td class="fw-bold text-info">
+                                            <i class="bi bi-diagram-2 me-2"></i>Подгруппы
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_create_subgroups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_edit_subgroups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_delete_subgroups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_view_subgroups(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+                                    <!-- Типы -->
+                                    <tr>
+                                        <td class="fw-bold text-success">
+                                            <i class="bi bi-tags me-2"></i>Типы
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_create_types(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_edit_types(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_delete_types(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_view_types(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+                                    <!-- Корпуса -->
+                                    <tr>
+                                        <td class="fw-bold text-primary">
+                                            <i class="bi bi-box me-2"></i>Корпуса
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_create_housings(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_edit_housings(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_delete_housings(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_view_housings(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+                                    <!-- Компоненты -->
+                                    <tr>
+                                        <td class="fw-bold text-danger">
+                                            <i class="bi bi-cpu me-2"></i>Компоненты
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_create_components(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_edit_components(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_delete_components(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="form-check form-check-inline d-inline-block">
+                                                {{ form.can_view_components(class="form-check-input") }}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer text-muted small">
+                            <i class="bi bi-info-circle me-1"></i> Установите соответствующие права доступа для пользователя
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    {{ form.submit(class="btn btn-primary") }}
+                    <a href="{{ url_for('users.index') }}" class="btn btn-outline-secondary">Отмена</a>
+                    {% if current_user.id != user.id %}
+                        <a href="{{ url_for('users.delete', id=user.id) }}" 
+                           class="btn btn-outline-danger ms-auto" 
+                           onclick="return confirm('Вы уверены, что хотите удалить пользователя?')">
+                            <i class="bi bi-trash"></i> Удалить пользователя
+                        </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,219 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Склад компонентов</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        :root {
+            --body-bg:       #f0f4f8;
+            --card-bg:       #ffffff;
+            --card-hdr:      #f8fafc;
+            --border:        #e2e8f0;
+            --text-primary:  #1e293b;
+            --text-muted:    #64748b;
+            --accent:        #4f6ef7;
+            --shadow-sm:     0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
+            --shadow:        0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+        }
+        body {
+            background: var(--body-bg);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+        }
+        /* ── Navbar ── */
+        .main-nav {
+            background: linear-gradient(135deg, #1a2535 0%, #243047 100%);
+            box-shadow: 0 2px 14px rgba(0,0,0,.22);
+        }
+        .main-nav .navbar-brand {
+            font-weight: 700;
+            font-size: 1.1rem;
+            letter-spacing: -.01em;
+            color: #fff !important;
+        }
+        .main-nav .nav-link {
+            color: rgba(255,255,255,.82) !important;
+            border-radius: .4rem;
+            padding: .45rem .85rem;
+            transition: background .15s, color .15s;
+        }
+        .main-nav .nav-link:hover,
+        .main-nav .nav-link.active { background: rgba(255,255,255,.12); color: #fff !important; }
+        .main-nav .dropdown-menu {
+            background: #1e2d42;
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: .6rem;
+            box-shadow: var(--shadow);
+        }
+        .main-nav .dropdown-item {
+            color: rgba(255,255,255,.82);
+            border-radius: .35rem;
+            margin: .1rem .4rem;
+            transition: background .12s;
+        }
+        .main-nav .dropdown-item:hover { background: rgba(255,255,255,.12); color: #fff; }
+        /* ── Cards ── */
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: .75rem;
+            box-shadow: var(--shadow-sm);
+        }
+        .card-header {
+            background: var(--card-hdr);
+            border-bottom: 1px solid var(--border);
+            border-radius: .75rem .75rem 0 0 !important;
+            padding: .85rem 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .card-footer {
+            background: var(--card-hdr);
+            border-top: 1px solid var(--border);
+        }
+        /* ── Tables ── */
+        .table {
+            --bs-table-striped-bg: #f8fafc;
+            --bs-table-hover-bg:   #eff6ff;
+            --bs-table-border-color: var(--border);
+        }
+        .table thead th {
+            background: #f1f5f9;
+            color: var(--text-muted);
+            font-size: .72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .055em;
+            border-bottom: 2px solid var(--border) !important;
+            padding: .65rem 1rem;
+            white-space: nowrap;
+        }
+        .table td { vertical-align: middle; padding: .7rem 1rem; }
+        /* ── Forms ── */
+        .form-control, .form-select {
+            background: #f8fafc;
+            border-color: var(--border);
+            border-radius: .5rem;
+            color: var(--text-primary);
+            transition: border-color .15s, box-shadow .15s, background .15s;
+        }
+        .form-control:focus, .form-select:focus {
+            background: #fff;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(79,110,247,.18);
+            color: var(--text-primary);
+        }
+        .form-label {
+            font-weight: 500;
+            color: #475569;
+            font-size: .875rem;
+            margin-bottom: .3rem;
+        }
+        /* ── Buttons ── */
+        .btn { border-radius: .5rem; font-weight: 500; transition: transform .1s, box-shadow .15s; }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary { background: var(--accent); border-color: var(--accent); box-shadow: 0 2px 6px rgba(79,110,247,.28); }
+        .btn-primary:hover { background: #3d5ce4; border-color: #3d5ce4; box-shadow: 0 4px 12px rgba(79,110,247,.32); }
+        .btn-outline-primary { color: var(--accent); border-color: var(--accent); }
+        .btn-outline-primary:hover { background: var(--accent); border-color: var(--accent); }
+        /* ── Badges ── */
+        .badge { font-weight: 500; border-radius: .35rem; padding: .32em .65em; }
+        /* ── Pagination ── */
+        .page-link { color: var(--accent); border-color: var(--border); border-radius: .4rem !important; margin: 0 2px; font-weight: 500; }
+        .page-link:hover { background: #eff6ff; color: var(--accent); border-color: var(--border); }
+        .page-item.active .page-link { background: var(--accent); border-color: var(--accent); }
+        .page-item.disabled .page-link { background: #f8fafc; color: #cbd5e1; border-color: var(--border); }
+        /* ── Alerts ── */
+        .alert { border: none; border-radius: .65rem; }
+        .alert-danger  { background: #fef2f2; color: #b91c1c; }
+        .alert-success { background: #f0fdf4; color: #15803d; }
+        /* ── Page header ── */
+        .page-header h2 { font-weight: 700; font-size: 1.4rem; color: var(--text-primary); }
+        .page-header p  { color: var(--text-muted); font-size: .9rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg main-nav">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <i class="bi bi-cpu-fill me-2 text-primary"></i>Склад компонентов
+            </a>
+            <button class="navbar-toggler border-0" style="filter:invert(1)" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+                    {% if current_user.is_authenticated %}
+                        {% if current_user.role == 'super_admin' or current_user.can_view_components %}
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('components.index') }}">
+                                    <i class="bi bi-box-seam me-1"></i>Компоненты
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('orders.index') }}">
+                                    <i class="bi bi-cart3 me-1"></i>Заказы
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('orders.report') }}">
+                                    <i class="bi bi-file-earmark-arrow-down me-1"></i>Отчёт
+                                </a>
+                            </li>
+                        {% endif %}
+                        {% if current_user.role == 'super_admin' or current_user.can_view_groups or current_user.can_view_subgroups or current_user.can_view_types or current_user.can_view_housings %}
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-gear me-1"></i>Администрирование
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                                    {% if current_user.role == 'super_admin' or current_user.can_view_groups %}
+                                        <li><a class="dropdown-item" href="{{ url_for('groups.index') }}"><i class="bi bi-collection me-2"></i>Группы</a></li>
+                                    {% endif %}
+                                    {% if current_user.role == 'super_admin' or current_user.can_view_subgroups %}
+                                        <li><a class="dropdown-item" href="{{ url_for('groups.subgroups') }}"><i class="bi bi-diagram-2 me-2"></i>Подгруппы</a></li>
+                                    {% endif %}
+                                    {% if current_user.role == 'super_admin' or current_user.can_view_types %}
+                                        <li><a class="dropdown-item" href="{{ url_for('catalog.types') }}"><i class="bi bi-tags me-2"></i>Типы</a></li>
+                                    {% endif %}
+                                    {% if current_user.role == 'super_admin' or current_user.can_view_housings %}
+                                        <li><a class="dropdown-item" href="{{ url_for('catalog.housings') }}"><i class="bi bi-box me-2"></i>Корпуса</a></li>
+                                    {% endif %}
+                                    {% if current_user.role == 'super_admin' %}
+                                        <li><hr class="dropdown-divider" style="border-color:rgba(255,255,255,.1)"></li>
+                                        <li><a class="dropdown-item" href="{{ url_for('users.index') }}"><i class="bi bi-people me-2"></i>Пользователи</a></li>
+                                        <li><a class="dropdown-item" href="{{ url_for('components.archive') }}"><i class="bi bi-archive me-2"></i>Архив</a></li>
+                                    {% endif %}
+                                </ul>
+                            </li>
+                        {% endif %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                                <i class="bi bi-box-arrow-right me-1"></i>Выйти
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.login') }}">
+                                <i class="bi bi-box-arrow-in-right me-1"></i>Войти
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.register') }}">
+                                <i class="bi bi-person-plus me-1"></i>Регистрация
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-4 mb-5">
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

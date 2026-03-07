@@ -1,0 +1,21 @@
+[project]
+name = "component-warehouse"
+version = "0.1.0"
+description = "Система управления складом электронных компонентов"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0",
+    "flask-sqlalchemy>=3.1",
+    "flask-login>=0.6",
+    "flask-wtf>=1.2",
+    "passlib>=1.7",
+    "wtforms>=3.1",
+    "python-dotenv>=1.2.2",
+]
+
+[tool.uv]
+dev-dependencies = []
+
+[tool.flask]
+app = "app"
+debug = true
