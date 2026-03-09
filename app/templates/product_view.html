@@ -400,8 +400,8 @@ if (mergeBtn) {
                             <button type="button" class="btn btn-outline-warning" onclick="_libMouserLookup()" title="Найти в Mouser Electronics">
                                 <i class="bi bi-search"></i> Mouser
                             </button>
-                            <button type="button" class="btn btn-outline-success" onclick="_libLcscLookup()" title="Найти в LCSC">
-                                <i class="bi bi-search"></i> LCSC
+                            <button type="button" class="btn btn-outline-success" onclick="_libNexarLookup()" title="Найти в Nexar (Octopart)">
+                                <i class="bi bi-search"></i> Nexar
                             </button>
                             <button type="button" class="btn btn-outline-info" onclick="_libAiLookup()" title="Определить тип через ИИ">
                                 <i class="bi bi-robot"></i>
@@ -412,36 +412,50 @@ if (mergeBtn) {
                     <div class="row g-2">
                         <div class="col-4">
                             <label class="form-label">Группа</label>
-                            <select class="form-select form-select-sm" id="libGroup" onchange="loadLibSubgroups()">
-                                <option value="0">Выберите…</option>
-                                {% for g in all_groups %}
-                                <option value="{{ g.id }}">{{ g.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="input-group input-group-sm">
+                                <select class="form-select form-select-sm" id="libGroup" onchange="loadLibSubgroups()">
+                                    <option value="0">Выберите…</option>
+                                    {% for g in all_groups %}
+                                    <option value="{{ g.id }}">{{ g.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" title="Добавить группу" onclick="_libAddGroup()"><i class="bi bi-plus"></i></button>
+                            </div>
                         </div>
                         <div class="col-4">
                             <label class="form-label">Подгруппа</label>
-                            <select class="form-select form-select-sm" id="libSubgroup" onchange="loadLibTypes()">
-                                <option value="0">Выберите…</option>
-                            </select>
+                            <div class="input-group input-group-sm">
+                                <select class="form-select form-select-sm" id="libSubgroup" onchange="loadLibTypes()">
+                                    <option value="0">Выберите…</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" title="Добавить подгруппу" onclick="_libAddSubgroup()"><i class="bi bi-plus"></i></button>
+                            </div>
                         </div>
                         <div class="col-4">
                             <label class="form-label">Тип *</label>
-                            <select class="form-select form-select-sm" name="type_id" id="libType" required>
-                                <option value="0">Выберите…</option>
-                            </select>
+                            <div class="input-group input-group-sm">
+                                <select class="form-select form-select-sm" name="type_id" id="libType" required>
+                                    <option value="0">Выберите…</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" title="Добавить тип" onclick="_libAddType()"><i class="bi bi-plus"></i></button>
+                            </div>
                         </div>
                         <div class="col-6">
                             <label class="form-label">
                                 Корпус
                                 <span id="libHousingSug" class="small text-info ms-1"></span>
                             </label>
-                            <select class="form-select form-select-sm" name="housing_id" id="libHousing">
-                                <option value="0">— нет —</option>
-                                {% for h in all_housings %}
-                                <option value="{{ h.id }}">{{ h.housing_name }}</option>
-                                {% endfor %}
-                            </select>
+                            <input type="text" class="form-control form-control-sm mb-1" id="libHousingSearch"
+                                   placeholder="Поиск корпуса…" autocomplete="off" oninput="_filterLibHousing(this.value)">
+                            <div class="input-group input-group-sm">
+                                <select class="form-select form-select-sm" name="housing_id" id="libHousing">
+                                    <option value="0">— нет —</option>
+                                    {% for h in all_housings %}
+                                    <option value="{{ h.id }}">{{ h.housing_name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" title="Добавить корпус" onclick="_libAddHousing()"><i class="bi bi-plus"></i></button>
+                            </div>
                         </div>
                         <div class="col-6">
                             <label class="form-label">Производитель</label>
@@ -520,6 +534,8 @@ function openLibModal(btn) {
     document.getElementById('libSubgroup').innerHTML = '<option value="0">Выберите…</option>';
     document.getElementById('libType').innerHTML = '<option value="0">Выберите…</option>';
     document.getElementById('libHousing').value = '0';
+    document.getElementById('libHousingSearch').value = '';
+    _filterLibHousing('');
     document.getElementById('libHousingSug').textContent = '';
     document.getElementById('libDetectStat').textContent = '';
 
@@ -637,20 +653,20 @@ function _libMouserLookup() {
     .catch(() => { stat.textContent = 'Ошибка сети'; stat.className = 'small text-danger mt-1 d-block'; });
 }
 
-function _libLcscLookup() {
+function _libNexarLookup() {
     const name = document.getElementById('libName').value.trim();
     if (!name) return;
     const stat = document.getElementById('libDetectStat');
-    stat.textContent = 'Поиск в LCSC…';
+    stat.textContent = 'Поиск в Nexar…';
     stat.className = 'small text-muted mt-1 d-block';
     const csrf = document.querySelector('#libForm input[name=csrf_token]').value;
-    fetch('/api/lcsc_lookup', {
+    fetch('/api/nexar_lookup', {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
         body: JSON.stringify({name: name})
     })
     .then(r => r.json())
-    .then(data => _libApplyLookupResult(data, 'LCSC'))
+    .then(data => _libApplyLookupResult(data, 'Nexar'))
     .catch(() => { stat.textContent = 'Ошибка сети'; stat.className = 'small text-danger mt-1 d-block'; });
 }
 
@@ -684,6 +700,83 @@ function _suggestLibHousing(fp) {
     }
     document.getElementById('libHousingSug').textContent = '(из Footprint: '+sug+')';
 }
+// ── Add new items from lib modal ──────────────────────────────────────────────
+async function _libApiPost(url, body) {
+    const csrf = document.querySelector('input[name=csrf_token]').value;
+    const r = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify(body)
+    });
+    return r.json();
+}
+
+async function _libAddGroup() {
+    const name = prompt('Название новой группы:');
+    if (!name || !name.trim()) return;
+    const d = await _libApiPost('/api/create_group', {name: name.trim()});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('libGroup');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+    loadLibSubgroups();
+}
+
+async function _libAddSubgroup() {
+    const gid = document.getElementById('libGroup').value;
+    if (!gid || gid == '0') { alert('Сначала выберите группу'); return; }
+    const name = prompt('Название новой подгруппы:');
+    if (!name || !name.trim()) return;
+    const units = prompt('Единицы измерения (через запятую):', 'шт');
+    const d = await _libApiPost('/api/create_subgroup', {name: name.trim(), group_id: parseInt(gid), units: units || 'шт'});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('libSubgroup');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+    loadLibTypes();
+}
+
+async function _libAddType() {
+    const sid = document.getElementById('libSubgroup').value;
+    if (!sid || sid == '0') { alert('Сначала выберите подгруппу'); return; }
+    const name = prompt('Название нового типа:');
+    if (!name || !name.trim()) return;
+    const d = await _libApiPost('/api/create_type', {name: name.trim(), subgroup_id: parseInt(sid)});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('libType');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+}
+
+async function _libAddHousing() {
+    const name = prompt('Название нового корпуса (напр.: DIP-8, SOT-23):');
+    if (!name || !name.trim()) return;
+    const d = await _libApiPost('/api/create_housing', {name: name.trim()});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('libHousing');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+    _libHousingAll.push({v: String(d.id), t: d.name});
+}
+
+// ── Housing search filter ─────────────────────────────────────────────────────
+let _libHousingAll = [];
+document.addEventListener('DOMContentLoaded', () => {
+    _libHousingAll = Array.from(document.getElementById('libHousing').options)
+        .map(o => ({v: o.value, t: o.text}));
+});
+
+function _filterLibHousing(q) {
+    const sel = document.getElementById('libHousing');
+    const cur = sel.value;
+    const lq = q.toLowerCase();
+    const filtered = lq ? _libHousingAll.filter(o => o.t.toLowerCase().includes(lq)) : _libHousingAll;
+    sel.innerHTML = '';
+    filtered.forEach(o => sel.add(new Option(o.t, o.v)));
+    sel.size = lq ? Math.min(Math.max(filtered.length, 1), 12) : 1;
+    if (cur && Array.from(sel.options).some(o => o.value === cur)) sel.value = cur;
+}
+
 function loadLibSubgroups() {
     const gid = document.getElementById('libGroup').value;
     const sub = document.getElementById('libSubgroup');

@@ -1,5 +1,8 @@
+import gzip
 import json
 import os
+import time
+import urllib.parse
 import urllib.request
 import urllib.error
 import re
@@ -482,147 +485,181 @@ def mouser_lookup():
         return jsonify({'error': str(e)}), 500
 
 
-@api_bp.route('/api/lcsc_lookup', methods=['POST'])
+# ── Nexar token cache (module-level) ──────────────────────────────────────────
+_nexar_token: str | None = None
+_nexar_token_expiry: float = 0.0
+
+
+def _nexar_get_token() -> str:
+    """Return a valid Nexar OAuth2 bearer token, refreshing if expired."""
+    global _nexar_token, _nexar_token_expiry
+    if _nexar_token and time.time() < _nexar_token_expiry - 60:
+        return _nexar_token
+    client_id = os.environ.get('NEXAR_CLIENT_ID', '')
+    client_secret = os.environ.get('NEXAR_CLIENT_SECRET', '')
+    if not client_id or not client_secret:
+        raise RuntimeError('NEXAR_CLIENT_ID / NEXAR_CLIENT_SECRET не заданы')
+    body = urllib.parse.urlencode({
+        'grant_type': 'client_credentials',
+        'client_id': client_id,
+        'client_secret': client_secret,
+    }).encode()
+    req = urllib.request.Request(
+        'https://identity.nexar.com/connect/token',
+        data=body,
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        tok = json.loads(resp.read())
+    _nexar_token = tok['access_token']
+    _nexar_token_expiry = time.time() + tok.get('expires_in', 3600)
+    return _nexar_token
+
+
+_NEXAR_QUERY = """
+query Search($q: String!) {
+  supSearch(q: $q, limit: 3) {
+    results {
+      part {
+        mpn
+        manufacturer { name }
+        shortDescription
+        specs { attribute { name } displayValue }
+        sellers(includeBrokers: false) {
+          company { name }
+          offers { prices { price currency } }
+        }
+      }
+    }
+  }
+}
+"""
+
+_NEXAR_CAT_MAP = {
+    'capacitor': 'capacitor', 'ceramic': 'capacitor',
+    'resistor': 'resistor',
+    'inductor': 'inductor', 'ferrite': 'inductor',
+    'diode': 'diode',
+    'transistor': 'transistor', 'mosfet': 'transistor',
+    'led': 'led',
+    'crystal': 'crystal', 'oscillator': 'crystal',
+}
+
+_NEXAR_KEYWORDS = {
+    'capacitor':  ['конден', 'capacit'],
+    'resistor':   ['резист', 'resist'],
+    'inductor':   ['катуш', 'индукт', 'inductor'],
+    'diode':      ['диод', 'diode'],
+    'transistor': ['транзист', 'transistor'],
+    'led':        ['светодиод', 'led'],
+    'crystal':    ['кварц', 'crystal'],
+}
+
+
+def _nexar_resolve_db(result: dict, category: str):
+    """Fill group_id / subgroup_id / type_id from local DB by category keywords."""
+    keywords = _NEXAR_KEYWORDS.get(category, [])
+    if not keywords:
+        return
+    sub_conds = [Subgroup.name.ilike(f'%{kw}%') for kw in keywords]
+    subgroup = Subgroup.query.filter(or_(*sub_conds)).first()
+    if subgroup:
+        result['group_id'] = subgroup.group_id
+        result['subgroup_id'] = subgroup.id
+        ctype = ComponentType.query.filter_by(subgroup_id=subgroup.id).first()
+        if ctype:
+            result['type_id'] = ctype.id
+        return
+    type_conds = [ComponentType.name.ilike(f'%{kw}%') for kw in keywords]
+    ctype = ComponentType.query.filter(or_(*type_conds)).first()
+    if ctype:
+        result['group_id'] = ctype.subgroup.group_id
+        result['subgroup_id'] = ctype.subgroup_id
+        result['type_id'] = ctype.id
+        return
+    grp_conds = [Group.name.ilike(f'%{kw}%') for kw in keywords]
+    group = Group.query.filter(or_(*grp_conds)).first()
+    if group:
+        result['group_id'] = group.id
+        sub = Subgroup.query.filter_by(group_id=group.id).first()
+        if sub:
+            result['subgroup_id'] = sub.id
+            ctype = ComponentType.query.filter_by(subgroup_id=sub.id).first()
+            if ctype:
+                result['type_id'] = ctype.id
+
+
+@api_bp.route('/api/nexar_lookup', methods=['POST'])
 @login_required
-def lcsc_lookup():
-    """Lookup component info from LCSC (wmsc.lcsc.com public search)."""
+def nexar_lookup():
+    """Lookup component info from Nexar (Octopart) API."""
     data = request.get_json() or {}
     name = (data.get('name') or '').strip()
     if not name:
         return jsonify({'error': 'Название обязательно'}), 400
 
-    _LCSC_UA = (
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-        'AppleWebKit/537.36 (KHTML, like Gecko) '
-        'Chrome/124.0.0.0 Safari/537.36'
-    )
-    _LCSC_HEADERS = {
-        'User-Agent': _LCSC_UA,
-        'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://www.lcsc.com/',
-        'Origin': 'https://www.lcsc.com',
-    }
-
-    # Try two known endpoints (wmsc is used by KiCad, global_search is newer)
-    _LCSC_URLS = [
-        f'https://wmsc.lcsc.com/wmsc/search/global?q={urllib.request.quote(name)}&currentPage=1&pageSize=5',
-        f'https://lcsc.com/api/global_search/v2?q={urllib.request.quote(name)}&currentPage=1&pageSize=5',
-    ]
-
-    body = None
-    last_err = 'нет ответа'
-    for _url in _LCSC_URLS:
-        try:
-            req = urllib.request.Request(_url, headers=_LCSC_HEADERS)
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                body = json.loads(resp.read())
-            if body.get('code') == 200:
-                break
-            last_err = body.get('msg') or str(body.get('code', 'err'))
-            body = None
-        except Exception as ex:
-            last_err = str(ex)
-            body = None
+    try:
+        token = _nexar_get_token()
+    except Exception as e:
+        return jsonify({'error': f'Nexar auth: {e}'}), 502
 
     try:
-        if not body:
-            return jsonify({'error': f'LCSC недоступен: {last_err}'}), 502
-
-        result_data = body.get('result') or {}
-        # Try tipProductDetails first (exact match by part number), then productList
-        tip = result_data.get('tipProductDetails') or []
-        product_list = (result_data.get('productSearchResultVO') or {}).get('productList') or []
-        parts = tip + product_list
-        if not parts:
-            return jsonify({'error': 'Компонент не найден в базе LCSC'}), 404
-
-        part = parts[0]
-        description = (part.get('productIntroEn') or part.get('productDescEn') or
-                       part.get('productIntro') or '')
-        result = {
-            'source':            'lcsc',
-            'manufacturer':      part.get('brandNameEn') or part.get('brandName', ''),
-            'manufacturer_part': part.get('productModel', ''),
-            'description':       description,
-            'lcsc_code':         part.get('productCode', ''),
-        }
-
-        # encapStandard is usually clean: "0603", "SOT-23", etc.
-        package = (part.get('encapStandard') or part.get('packageStandard') or
-                   part.get('encap') or '')
-        if not package and description:
-            package = description  # fall back to parsing from description
-
-        if package:
-            hid = _match_housing_from_footprint(package)
-            if hid:
-                result['housing_id'] = hid
-                result['package'] = package
-
-        # Category mapping
-        cat_str = (part.get('catalogName') or part.get('catalogNodePathEn') or '').lower()
-        _lcsc_cat_map = {
-            'capacitor': 'capacitor', 'multilayer ceramic': 'capacitor',
-            'resistor': 'resistor',
-            'inductor': 'inductor',   'ferrite': 'inductor',
-            'diode': 'diode',
-            'transistor': 'transistor', 'mosfet': 'transistor',
-            'led': 'led',             'light emitting': 'led',
-            'crystal': 'crystal',     'oscillator': 'crystal',
-        }
-        category = None
-        for key, cat in _lcsc_cat_map.items():
-            if key in cat_str:
-                category = cat
-                break
-
-        if category:
-            result['category'] = category
-            _keywords_map = {
-                'capacitor':  ['конден', 'capacit'],
-                'resistor':   ['резист', 'resist'],
-                'inductor':   ['катуш', 'индукт', 'inductor'],
-                'diode':      ['диод', 'diode'],
-                'transistor': ['транзист', 'transistor'],
-                'led':        ['светодиод', 'led'],
-                'crystal':    ['кварц', 'crystal'],
-            }
-            keywords = _keywords_map.get(category, [])
-            if keywords:
-                sub_conds = [Subgroup.name.ilike(f'%{kw}%') for kw in keywords]
-                subgroup = Subgroup.query.filter(or_(*sub_conds)).first()
-                if subgroup:
-                    result['group_id'] = subgroup.group_id
-                    result['subgroup_id'] = subgroup.id
-                    ctype = ComponentType.query.filter_by(subgroup_id=subgroup.id).first()
-                    if ctype:
-                        result['type_id'] = ctype.id
-                else:
-                    type_conds = [ComponentType.name.ilike(f'%{kw}%') for kw in keywords]
-                    ctype = ComponentType.query.filter(or_(*type_conds)).first()
-                    if ctype:
-                        result['group_id'] = ctype.subgroup.group_id
-                        result['subgroup_id'] = ctype.subgroup_id
-                        result['type_id'] = ctype.id
-                    else:
-                        grp_conds = [Group.name.ilike(f'%{kw}%') for kw in keywords]
-                        group = Group.query.filter(or_(*grp_conds)).first()
-                        if group:
-                            result['group_id'] = group.id
-                            sub = Subgroup.query.filter_by(group_id=group.id).first()
-                            if sub:
-                                result['subgroup_id'] = sub.id
-                                ctype = ComponentType.query.filter_by(subgroup_id=sub.id).first()
-                                if ctype:
-                                    result['type_id'] = ctype.id
-
-        return jsonify(result)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode('utf-8', errors='replace')
-        return jsonify({'error': f'LCSC API {e.code}: {body[:200]}'}), 502
+        payload = json.dumps({'query': _NEXAR_QUERY, 'variables': {'q': name}}).encode()
+        req = urllib.request.Request(
+            'https://api.nexar.com/graphql',
+            data=payload,
+            headers={
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json',
+            },
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read())
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'Nexar API: {e}'}), 502
+
+    results = (body.get('data') or {}).get('supSearch', {}).get('results') or []
+    if not results:
+        return jsonify({'error': 'Компонент не найден в Nexar'}), 404
+
+    part = results[0]['part']
+    description = part.get('shortDescription') or ''
+    manufacturer = (part.get('manufacturer') or {}).get('name', '')
+
+    result = {
+        'source': 'nexar',
+        'manufacturer': manufacturer,
+        'manufacturer_part': part.get('mpn', ''),
+        'description': description,
+    }
+
+    # Package from specs
+    package = ''
+    desc_for_cat = description.lower()
+    for spec in part.get('specs') or []:
+        attr_name = (spec.get('attribute') or {}).get('name', '').lower()
+        if 'package' in attr_name or 'case' in attr_name:
+            package = spec.get('displayValue', '')
+            break
+
+    if package:
+        hid = _match_housing_from_footprint(package)
+        if hid:
+            result['housing_id'] = hid
+            result['package'] = package
+
+    # Category detection from description
+    category = None
+    for key, cat in _NEXAR_CAT_MAP.items():
+        if key in desc_for_cat:
+            category = cat
+            break
+
+    if category:
+        result['category'] = category
+        _nexar_resolve_db(result, category)
+
+    return jsonify(result)
 
 
 def _call_openai_compat(api_key, base_url, model, prompt):
