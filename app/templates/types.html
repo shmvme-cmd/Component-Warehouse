@@ -1,9 +1,8 @@
 ﻿{% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-tags me-2 text-primary"></i>Типы</h2>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-tags me-2 text-primary"></i>Типы</h2>
+</div>
 
     <!-- Форма добавления типа -->
     <div class="card mb-4">
@@ -32,12 +31,16 @@
 
     <!-- Таблица типов -->
     <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Список типов</h5>
+        <div class="card-header d-flex flex-wrap gap-2 align-items-center">
+            <h5 class="mb-0 me-auto">Список типов</h5>
             <span class="badge bg-primary rounded-pill">{{ types|length }} всего</span>
+            <div class="input-group input-group-sm" style="width:220px">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" id="typeSearch" class="form-control" placeholder="Поиск…" oninput="filterTable('typeSearch','typeTable')">
+            </div>
         </div>
         <div class="card-body table-responsive p-0">
-            <table class="table table-hover table-striped mb-0">
+            <table class="table table-hover table-striped mb-0" id="typeTable">
                 <thead>
                     <tr>
                         <th scope="col">ID</th>
@@ -80,5 +83,12 @@
             </table>
         </div>
     </div>
-</div>
+<script>
+function filterTable(inputId, tableId) {
+    var q = document.getElementById(inputId).value.toLowerCase();
+    document.querySelectorAll('#' + tableId + ' tbody tr').forEach(function(row) {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+}
+</script>
 {% endblock %}

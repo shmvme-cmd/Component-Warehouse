@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-journal-bookmark me-2 text-primary"></i>{{ title }}</h2>
+    <a href="{{ url_for('library.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Назад
+    </a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="card" style="max-width:760px">
+    <div class="card-body">
+        <form method="POST" id="libForm">
+            {{ form.hidden_tag() }}
+            {% if next_action %}<input type="hidden" name="next_action" value="{{ next_action }}">{% endif %}
+
+            <div class="row g-3 mb-3">
+                <div class="col-12">
+                    <label class="form-label">{{ form.name.label }}</label>
+                    {{ form.name(class="form-control", placeholder="Напр.: 100nF, LM358, STM32F103C8T6") }}
+                    {# Lookup buttons #}
+                    <div class="d-flex gap-2 mt-1 align-items-center flex-wrap">
+                        <button type="button" class="btn btn-outline-warning btn-sm" id="mouserLookupBtn">
+                            <i class="bi bi-search me-1"></i>Mouser
+                        </button>
+                        <button type="button" class="btn btn-outline-success btn-sm" id="lcscLookupBtn">
+                            <i class="bi bi-search me-1"></i>LCSC
+                        </button>
+                        <button type="button" class="btn btn-outline-info btn-sm" id="aiLookupBtn">
+                            <i class="bi bi-robot me-1"></i>ИИ
+                        </button>
+                        <span id="aiStatus" class="small text-muted"></span>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label">{{ form.group_id.label }}</label>
+                    <div class="input-group">
+                        {{ form.group_id(class="form-select", id="lib_group_id") }}
+                        <button type="button" class="btn btn-outline-secondary" title="Добавить группу" onclick="addGroup()">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{{ form.subgroup_id.label }}</label>
+                    <div class="input-group">
+                        {{ form.subgroup_id(class="form-select", id="lib_subgroup_id") }}
+                        <button type="button" class="btn btn-outline-secondary" title="Добавить подгруппу" onclick="addSubgroup()">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">{{ form.type_id.label }}</label>
+                    <div class="input-group">
+                        {{ form.type_id(class="form-select", id="lib_type_id") }}
+                        <button type="button" class="btn btn-outline-secondary" title="Добавить тип" onclick="addType()">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">{{ form.housing_id.label }}</label>
+                    <div class="input-group">
+                        {{ form.housing_id(class="form-select", id="lib_housing_id") }}
+                        <button type="button" class="btn btn-outline-secondary" title="Добавить корпус" onclick="addHousing()">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{{ form.nominal_value.label }}</label>
+                    {{ form.nominal_value(class="form-control", id="lib_nominal",
+                        value=(form.nominal_value.data | fnum if form.nominal_value.data is not none else '')) }}
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">{{ form.unit.label }}</label>
+                    <input type="text" name="unit" id="lib_unit"
+                           class="form-control"
+                           value="{{ form.unit.data or '' }}"
+                           list="unitsList"
+                           placeholder="шт, нФ, кОм…">
+                    <datalist id="unitsList"></datalist>
+                </div>
+
+                <div class="col-md-6">
+                    <label class="form-label">{{ form.manufacturer.label }}</label>
+                    {{ form.manufacturer(class="form-control") }}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">{{ form.description.label }}</label>
+                    {{ form.description(class="form-control", placeholder="Краткое описание") }}
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                {{ form.submit(class="btn btn-primary") }}
+                <a href="{{ url_for('library.index') }}" class="btn btn-outline-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const CSRF = document.querySelector('input[name=csrf_token]').value;
+
+// ── Pre-populate units datalist on edit (page load) ──
+(function() {
+    const sid = document.getElementById('lib_subgroup_id').value;
+    if (sid && sid != '0') {
+        fetch('/get_units/' + sid)
+            .then(r => r.json())
+            .then(data => {
+                const dl = document.getElementById('unitsList');
+                data.forEach(u => dl.appendChild(Object.assign(document.createElement('option'), {value: u.unit})));
+            });
+    }
+})();
+
+// ── Cascading selects ──
+document.getElementById('lib_group_id').addEventListener('change', function() {
+    const gid = this.value;
+    const subSel = document.getElementById('lib_subgroup_id');
+    const typeSel = document.getElementById('lib_type_id');
+    subSel.innerHTML = '<option value="0">Выберите подгруппу</option>';
+    typeSel.innerHTML = '<option value="0">Выберите тип</option>';
+    document.getElementById('unitsList').innerHTML = '';
+    if (gid && gid != '0') {
+        fetch('/get_subgroups/' + gid)
+            .then(r => r.json())
+            .then(data => data.forEach(s => subSel.add(new Option(s.name, s.id))));
+    }
+});
+document.getElementById('lib_subgroup_id').addEventListener('change', function() {
+    const sid = this.value;
+    const typeSel = document.getElementById('lib_type_id');
+    typeSel.innerHTML = '<option value="0">Выберите тип</option>';
+    document.getElementById('unitsList').innerHTML = '';
+    if (sid && sid != '0') {
+        fetch('/get_types/' + sid)
+            .then(r => r.json())
+            .then(data => data.forEach(t => typeSel.add(new Option(t.name, t.id))));
+        fetch('/get_units/' + sid)
+            .then(r => r.json())
+            .then(data => {
+                const dl = document.getElementById('unitsList');
+                data.forEach(u => dl.appendChild(Object.assign(document.createElement('option'), {value: u.unit})));
+            });
+    }
+});
+
+// ── Add new items via API ──
+async function apiPost(url, body) {
+    const r = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+        body: JSON.stringify(body)
+    });
+    return r.json();
+}
+
+async function addGroup() {
+    const name = prompt('Название новой группы:');
+    if (!name || !name.trim()) return;
+    const d = await apiPost('/api/create_group', {name: name.trim()});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('lib_group_id');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+    sel.dispatchEvent(new Event('change'));
+}
+
+async function addSubgroup() {
+    const gid = document.getElementById('lib_group_id').value;
+    if (!gid || gid == '0') { alert('Сначала выберите группу'); return; }
+    const name = prompt('Название новой подгруппы:');
+    if (!name || !name.trim()) return;
+    const units = prompt('Единицы измерения (через запятую):', 'шт');
+    const d = await apiPost('/api/create_subgroup', {name: name.trim(), group_id: parseInt(gid), units: units || 'шт'});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('lib_subgroup_id');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+    sel.dispatchEvent(new Event('change'));
+}
+
+async function addType() {
+    const sid = document.getElementById('lib_subgroup_id').value;
+    if (!sid || sid == '0') { alert('Сначала выберите подгруппу'); return; }
+    const name = prompt('Название нового типа:');
+    if (!name || !name.trim()) return;
+    const d = await apiPost('/api/create_type', {name: name.trim(), subgroup_id: parseInt(sid)});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('lib_type_id');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+}
+
+async function addHousing() {
+    const name = prompt('Название нового корпуса (напр.: DIP-8, SOT-23):');
+    if (!name || !name.trim()) return;
+    const d = await apiPost('/api/create_housing', {name: name.trim()});
+    if (d.error) { alert(d.error); return; }
+    const sel = document.getElementById('lib_housing_id');
+    sel.add(new Option(d.name, d.id));
+    sel.value = d.id;
+}
+
+// ── Format number without scientific notation ──
+function fmtNum(v) {
+    if (v == null) return '';
+    let n = parseFloat(v);
+    if (Number.isInteger(n)) return String(n);
+    let s = n.toFixed(10).replace(/\.?0+$/, '');
+    return s;
+}
+
+// ── Shared: apply lookup result to form fields ──
+function _applyLookupData(data, source, btn) {
+    const status = document.getElementById('aiStatus');
+    if (data.error) { status.textContent = source + ': ' + data.error; return; }
+
+    if (data.nominal_value != null) document.getElementById('lib_nominal').value = fmtNum(data.nominal_value);
+    const descEl = document.getElementById('{{ form.description.id }}');
+    if (data.description && !descEl.value) descEl.value = data.description;
+    const mfrEl = document.getElementById('{{ form.manufacturer.id }}');
+    if (data.manufacturer && mfrEl && !mfrEl.value) mfrEl.value = data.manufacturer;
+
+    // Housing — по ID или по тексту (fuzzy)
+    const hSel = document.getElementById('lib_housing_id');
+    if (hSel) {
+        if (data.housing_id) {
+            hSel.value = String(data.housing_id);
+        } else if (data.housing) {
+            const hw = data.housing.toLowerCase().replace(/[-_ ]/g, '');
+            for (let opt of hSel.options) {
+                const ot = opt.text.toLowerCase().replace(/[-_ ]/g, '');
+                if (ot === hw || ot.includes(hw) || hw.includes(ot)) { hSel.value = opt.value; break; }
+            }
+        }
+    }
+
+    // Cascade: group → subgroup → type → units
+    if (data.group_id) {
+        document.getElementById('lib_group_id').value = data.group_id;
+        fetch('/get_subgroups/' + data.group_id)
+            .then(r => r.json())
+            .then(subs => {
+                const subSel = document.getElementById('lib_subgroup_id');
+                subSel.innerHTML = '<option value="0">Выберите подгруппу</option>';
+                subs.forEach(s => subSel.add(new Option(s.name, s.id)));
+                if (data.subgroup_id) subSel.value = data.subgroup_id;
+                const sid = data.subgroup_id || (subSel.value !== '0' ? subSel.value : null);
+                if (!sid) return Promise.resolve([]);
+                return fetch('/get_types/' + sid).then(r => r.json()).then(types => {
+                    const typeSel = document.getElementById('lib_type_id');
+                    typeSel.innerHTML = '<option value="0">Выберите тип</option>';
+                    types.forEach(t => typeSel.add(new Option(t.name, t.id)));
+                    if (data.type_id) typeSel.value = data.type_id;
+                    return fetch('/get_units/' + sid).then(r => r.json());
+                });
+            })
+            .then(units => {
+                if (!units || !units.length) return;
+                const dl = document.getElementById('unitsList');
+                dl.innerHTML = '';
+                units.forEach(u => dl.appendChild(Object.assign(document.createElement('option'), {value: u.unit})));
+                if (data.unit) document.getElementById('lib_unit').value = data.unit;
+                status.textContent = source + ': заполнено ✓';
+            })
+            .catch(() => { status.textContent = source + ': заполнено частично'; });
+    } else {
+        if (data.unit) document.getElementById('lib_unit').value = data.unit;
+        status.textContent = source + ': заполнено ✓ (тип не определён)';
+    }
+}
+
+// ── Mouser Lookup ──
+document.getElementById('mouserLookupBtn').addEventListener('click', function() {
+    const name = document.getElementById('{{ form.name.id }}').value.trim();
+    if (!name) { alert('Сначала введите название компонента'); return; }
+    const btn = this;
+    const status = document.getElementById('aiStatus');
+    btn.disabled = true;
+    status.textContent = 'Поиск в Mouser…';
+    fetch('/api/mouser_lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => _applyLookupData(data, 'Mouser', btn))
+    .catch(e => { status.textContent = 'Ошибка сети: ' + e; })
+    .finally(() => { btn.disabled = false; });
+});
+
+// ── LCSC Lookup ──
+document.getElementById('lcscLookupBtn').addEventListener('click', function() {
+    const name = document.getElementById('{{ form.name.id }}').value.trim();
+    if (!name) { alert('Сначала введите название компонента'); return; }
+    const btn = this;
+    const status = document.getElementById('aiStatus');
+    btn.disabled = true;
+    status.textContent = 'Поиск в LCSC…';
+    fetch('/api/lcsc_lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => _applyLookupData(data, 'LCSC', btn))
+    .catch(e => { status.textContent = 'Ошибка сети: ' + e; })
+    .finally(() => { btn.disabled = false; });
+});
+
+// ── AI Lookup ──
+document.getElementById('aiLookupBtn').addEventListener('click', function() {
+    const name = document.getElementById('{{ form.name.id }}').value.trim();
+    if (!name) { alert('Сначала введите название компонента'); return; }
+    const btn = this;
+    const status = document.getElementById('aiStatus');
+    btn.disabled = true;
+    status.textContent = 'Запрос к ИИ…';
+    fetch('/api/lookup_component', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => _applyLookupData(data, 'ИИ', btn))
+    .catch(e => { status.textContent = 'Ошибка сети: ' + e; })
+    .finally(() => { btn.disabled = false; });
+});
+</script>
+{% endblock %}

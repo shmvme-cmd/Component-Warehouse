@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-box-arrow-down me-2 text-warning"></i>Результат списания</h2>
+        <p class="text-muted mb-0">{{ product.name }} &mdash; {{ n }} изд.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('bom.view', id=product.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>К изделию
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}{% endif %}
+{% endwith %}
+
+{# ── Сводка ── #}
+{% set total_items = results | length %}
+{% set ok_items = results | selectattr('status', 'equalto', 'ok') | list | length %}
+{% set partial_items = results | selectattr('status', 'equalto', 'partial') | list | length %}
+{% set missing_items = results | selectattr('status', 'in', ['missing', 'unmatched']) | list | length %}
+{% set total_shortage = results | sum(attribute='shortage') %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold text-primary">{{ total_items }}</div>
+                <div class="small text-muted">Позиций</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold text-success">{{ ok_items }}</div>
+                <div class="small text-muted">Списано полностью</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold text-warning">{{ partial_items }}</div>
+                <div class="small text-muted">Частично</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center">
+            <div class="card-body py-3">
+                <div class="fs-4 fw-bold {{ 'text-danger' if total_shortage > 0 else 'text-success' }}">{{ total_shortage }}</div>
+                <div class="small text-muted">Нехватка (шт.)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-table me-2"></i>Детализация</div>
+    <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Название (BOM)</th>
+                    <th>Компонент</th>
+                    <th class="text-center">Нужно</th>
+                    <th class="text-center">Списано</th>
+                    <th class="text-center">Нехватка</th>
+                    <th class="text-center">Статус</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in results %}
+                <tr class="{{ 'table-success' if r.status == 'ok' else 'table-warning' if r.status == 'partial' else 'table-danger' }}">
+                    <td class="fw-semibold">{{ r.item.name }}</td>
+                    <td>
+                        {% if r.item.component %}
+                            <a href="{{ url_for('components.view', id=r.item.component.id) }}" class="text-decoration-none">
+                                {{ r.item.component.name }}
+                            </a>
+                        {% else %}
+                            <span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>Не сопоставлен</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ r.required }}</td>
+                    <td class="text-center">{{ r.deducted }}</td>
+                    <td class="text-center">
+                        {% if r.shortage > 0 %}
+                            <span class="badge bg-danger">{{ r.shortage }}</span>
+                        {% else %}
+                            <span class="text-muted">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if r.status == 'ok' %}
+                            <span class="badge bg-success">OK</span>
+                        {% elif r.status == 'partial' %}
+                            <span class="badge bg-warning text-dark">Частично</span>
+                        {% elif r.status == 'unmatched' %}
+                            <span class="badge bg-secondary">Не сопоставлен</span>
+                        {% else %}
+                            <span class="badge bg-danger">Нет на складе</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if total_shortage > 0 %}
+<div class="card">
+    <div class="card-body">
+        <p class="mb-3 text-muted">Для нехватающих компонентов можно создать заказы на закупку.</p>
+        <form method="POST" action="{{ url_for('bom.order_missing', id=product.id) }}">
+            {{ produce_form.hidden_tag() }}
+            <input type="hidden" name="quantity" value="{{ n }}">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-cart3 me-1"></i>Создать заказы на нехватку
+            </button>
+            <a href="{{ url_for('bom.view', id=product.id) }}" class="btn btn-outline-secondary ms-2">
+                <i class="bi bi-arrow-left me-1"></i>Назад к изделию
+            </a>
+        </form>
+    </div>
+</div>
+{% else %}
+<a href="{{ url_for('bom.view', id=product.id) }}" class="btn btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Назад к изделию
+</a>
+{% endif %}
+{% endblock %}

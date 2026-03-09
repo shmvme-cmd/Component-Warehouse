@@ -1,0 +1,482 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-calculator me-2 text-primary"></i>Калькуляторы и конвертеры</h2>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="toolsTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#cap">Ёмкость</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ind">Индуктивность</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#smd">SMD резисторы</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#led">Резистор для LED</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#opto">Оптопары</button></li>
+</ul>
+
+<div class="tab-content">
+
+    {# ── Ёмкость ── #}
+    <div class="tab-pane fade show active" id="cap">
+        <div class="card" style="max-width:480px">
+            <div class="card-header">Перевод единиц ёмкости</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Значение</label>
+                    <input type="number" id="capVal" class="form-control" step="any" placeholder="Введите число">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Исходная единица</label>
+                    <select id="capFrom" class="form-select">
+                        <option value="1e12">Ф (Farad)</option>
+                        <option value="1e9">мФ (mF)</option>
+                        <option value="1e6" selected>мкФ (µF)</option>
+                        <option value="1e3">нФ (nF)</option>
+                        <option value="1">пФ (pF)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="convertCap()">Перевести</button>
+                <div id="capResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Индуктивность ── #}
+    <div class="tab-pane fade" id="ind">
+        <div class="card" style="max-width:480px">
+            <div class="card-header">Перевод единиц индуктивности</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Значение</label>
+                    <input type="number" id="indVal" class="form-control" step="any" placeholder="Введите число">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Исходная единица</label>
+                    <select id="indFrom" class="form-select">
+                        <option value="1e9">Гн (H)</option>
+                        <option value="1e6">мГн (mH)</option>
+                        <option value="1e3" selected>мкГн (µH)</option>
+                        <option value="1">нГн (nH)</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary w-100" onclick="convertInd()">Перевести</button>
+                <div id="indResult" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    {# ── SMD резисторы ── #}
+    <div class="tab-pane fade" id="smd">
+        <div class="card" style="max-width:480px">
+            <div class="card-header">Калькулятор маркировки SMD резисторов</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Маркировка (3 цифры, 4 цифры или EIA-96)</label>
+                    <input type="text" id="smdCode" class="form-control" placeholder="Например: 472, 4702, 01A"
+                           oninput="decodeSMD()">
+                </div>
+                <div id="smdResult" class="mt-2"></div>
+                <hr>
+                <p class="text-muted small mb-1">Подсказка:</p>
+                <ul class="text-muted small mb-0">
+                    <li><b>3 цифры:</b> первые 2 — значение, 3-я — множитель (472 = 4700 Ом)</li>
+                    <li><b>4 цифры:</b> первые 3 — значение, 4-я — множитель (4702 = 47 кОм)</li>
+                    <li><b>R в коде:</b> десятичная точка (4R7 = 4,7 Ом)</li>
+                    <li><b>EIA-96:</b> 2 цифры + буква множителя (01A = 100 Ом)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    {# ── Резистор для LED ── #}
+    <div class="tab-pane fade" id="led">
+        <div class="card" style="max-width:640px">
+            <div class="card-header">Расчёт резистора для светодиода</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Светодиод из базы</label>
+                        <select id="ledSel" class="form-select" onchange="ledFill()">
+                            <option value="">— Выбрать из базы —</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Напряжение питания V<sub>cc</sub>, В</label>
+                        <input type="number" id="ledVcc" class="form-control" step="any" value="5">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Падение на LED V<sub>f</sub>, В</label>
+                        <input type="number" id="ledVf" class="form-control" step="any" value="2">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Ток LED I<sub>f</sub>, мА</label>
+                        <input type="number" id="ledIf" class="form-control" step="any" value="20">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Число LED последовательно</label>
+                        <input type="number" id="ledN" class="form-control" step="1" value="1" min="1">
+                    </div>
+                </div>
+                <button class="btn btn-primary w-100 mt-3" onclick="calcLED()">Рассчитать</button>
+                <div id="ledResult" class="mt-3"></div>
+
+                <hr>
+                <h6 class="text-muted">База светодиодов</h6>
+                <div class="table-responsive" style="max-height:280px;overflow-y:auto">
+                    <table class="table table-sm table-hover" id="ledTable">
+                        <thead><tr>
+                            <th>Модель / тип</th><th>Цвет</th>
+                            <th>V<sub>f</sub>, В</th><th>I<sub>f</sub> тип, мА</th><th>I<sub>f</sub> макс, мА</th>
+                        </tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── Оптопары ── #}
+    <div class="tab-pane fade" id="opto">
+        <div class="card" style="max-width:620px">
+            <div class="card-header">Расчёт резистора для оптопары</div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">Оптопара</label>
+                        <select id="optoSel" class="form-select" onchange="optoFill()">
+                            <option value="">— Выбрать из базы —</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">V<sub>cc</sub> вход, В</label>
+                        <input type="number" id="optoVcc" class="form-control" step="any" value="5">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">V<sub>f</sub> диода, В</label>
+                        <input type="number" id="optoVf" class="form-control" step="any" value="1.2">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">I<sub>f</sub> диода, мА</label>
+                        <input type="number" id="optoIf" class="form-control" step="any" value="10">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">CTR, % <span class="text-muted">(минимальный)</span></label>
+                        <input type="number" id="optoCTR" class="form-control" step="any" value="100">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">V<sub>cc</sub> выход, В</label>
+                        <input type="number" id="optoVccOut" class="form-control" step="any" value="5">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">V<sub>ce sat</sub>, В</label>
+                        <input type="number" id="optoVceSat" class="form-control" step="any" value="0.2">
+                    </div>
+                </div>
+                <button class="btn btn-primary w-100 mt-3" onclick="calcOpto()">Рассчитать</button>
+                <div id="optoResult" class="mt-3"></div>
+
+                <hr>
+                <h6 class="text-muted">База оптопар</h6>
+                <div class="table-responsive" style="max-height:260px;overflow-y:auto">
+                    <table class="table table-sm table-hover" id="optoTable">
+                        <thead><tr>
+                            <th>Модель</th><th>CTR мин, %</th><th>CTR макс, %</th>
+                            <th>V<sub>f</sub>, В</th><th>I<sub>f</sub> макс, мА</th><th>V<sub>ce sat</sub>, В</th>
+                        </tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>{# /tab-content #}
+
+<script>
+/* ─── Форматирование числа ─── */
+function fmtNum(x) {
+    if (x === 0) return '0';
+    const abs = Math.abs(x);
+    const mag = Math.floor(Math.log10(abs));
+    const dp  = Math.max(0, Math.min(15, 3 - mag));
+    let s = x.toFixed(dp);
+    if (s.includes('.')) s = s.replace(/\.?0+$/, '');
+    return s;
+}
+function fmtOhm(r) {
+    if (r >= 1e6) return (r / 1e6).toPrecision(4) + ' МОм';
+    if (r >= 1e3) return (r / 1e3).toPrecision(4) + ' кОм';
+    return r.toPrecision(4) + ' Ом';
+}
+function fmtRow(label, val, unit) {
+    return `<tr><td class="text-muted">${label}</td><td><b>${val}</b> ${unit}</td></tr>`;
+}
+function resultTable(rows) {
+    return `<table class="table table-sm mb-0"><tbody>${rows}</tbody></table>`;
+}
+function alertBox(msg, type='danger') {
+    return `<div class="alert alert-${type} py-2 mb-0">${msg}</div>`;
+}
+
+/* ─── Конвертер ёмкости ─── */
+function convertCap() {
+    const v = parseFloat(document.getElementById('capVal').value);
+    const f = parseFloat(document.getElementById('capFrom').value);
+    const el = document.getElementById('capResult');
+    if (isNaN(v)) { el.innerHTML = alertBox('Введите число'); return; }
+    const pf = v * f;
+    el.innerHTML = resultTable(
+        fmtRow('Фарад (Ф)',        fmtNum(pf / 1e12), '') +
+        fmtRow('Миллифарад (мФ)',  fmtNum(pf / 1e9),  '') +
+        fmtRow('Микрофарад (мкФ)', fmtNum(pf / 1e6),  '') +
+        fmtRow('Нанофарад (нФ)',   fmtNum(pf / 1e3),  '') +
+        fmtRow('Пикофарад (пФ)',   fmtNum(pf),        '')
+    );
+}
+
+/* ─── Конвертер индуктивности ─── */
+function convertInd() {
+    const v = parseFloat(document.getElementById('indVal').value);
+    const f = parseFloat(document.getElementById('indFrom').value);
+    const el = document.getElementById('indResult');
+    if (isNaN(v)) { el.innerHTML = alertBox('Введите число'); return; }
+    const nh = v * f;
+    el.innerHTML = resultTable(
+        fmtRow('Генри (Гн)',        fmtNum(nh / 1e9), '') +
+        fmtRow('Миллигенри (мГн)',  fmtNum(nh / 1e6), '') +
+        fmtRow('Микрогенри (мкГн)', fmtNum(nh / 1e3), '') +
+        fmtRow('Нанногенри (нГн)',  fmtNum(nh),       '')
+    );
+}
+
+/* ─── SMD резисторы ─── */
+const EIA96_VAL = [
+    100,102,105,107,110,113,115,118,121,124,
+    127,130,133,137,140,143,147,150,154,158,
+    162,165,169,174,178,182,187,191,196,200,
+    205,210,215,221,226,232,237,243,249,255,
+    261,267,274,280,287,294,301,309,316,324,
+    332,340,348,357,365,374,383,392,402,412,
+    422,432,442,453,464,475,487,499,511,523,
+    536,549,562,576,590,604,619,634,649,665,
+    681,698,715,732,750,768,787,806,825,845,
+    866,887,909,931,953,976
+];
+const EIA96_MULT = {Z:0.001,Y:0.01,X:0.1,A:1,B:10,C:100,D:1000,E:10000,F:100000};
+
+function decodeSMD() {
+    const raw = document.getElementById('smdCode').value.trim().toUpperCase();
+    const el  = document.getElementById('smdResult');
+    if (!raw) { el.innerHTML = ''; return; }
+
+    let ohm = null, note = '';
+
+    // R в коде — десятичная точка
+    if (raw.includes('R')) {
+        const num = parseFloat(raw.replace('R', '.'));
+        if (!isNaN(num)) { ohm = num; note = 'Прямое значение (R = десятичная точка)'; }
+    }
+    // EIA-96: 2 цифры + буква
+    else if (/^\d{2}[A-Z]$/.test(raw)) {
+        const idx  = parseInt(raw.slice(0, 2));
+        const mult = EIA96_MULT[raw[2]];
+        if (idx >= 1 && idx <= 96 && mult !== undefined) {
+            ohm  = EIA96_VAL[idx - 1] * mult;
+            note = `EIA-96: код ${idx} → ${EIA96_VAL[idx-1]}, множитель ${raw[2]} × ${mult}`;
+        }
+    }
+    // 3 цифры
+    else if (/^\d{3}$/.test(raw)) {
+        const sig  = parseInt(raw.slice(0, 2));
+        const exp  = parseInt(raw[2]);
+        ohm  = sig * Math.pow(10, exp);
+        note = `3-значный: ${sig} × 10^${exp}`;
+    }
+    // 4 цифры
+    else if (/^\d{4}$/.test(raw)) {
+        const sig  = parseInt(raw.slice(0, 3));
+        const exp  = parseInt(raw[3]);
+        ohm  = sig * Math.pow(10, exp);
+        note = `4-значный: ${sig} × 10^${exp}`;
+    }
+
+    if (ohm === null) {
+        el.innerHTML = alertBox('Не удалось распознать маркировку');
+        return;
+    }
+    el.innerHTML = `<div class="alert alert-success py-2 mb-1">
+        <b style="font-size:1.2em">${fmtOhm(ohm)}</b><br>
+        <span class="text-muted small">${note}</span>
+    </div>`;
+}
+
+/* ─── Резистор для LED ─── */
+function calcLED() {
+    const Vcc = parseFloat(document.getElementById('ledVcc').value);
+    const Vf  = parseFloat(document.getElementById('ledVf').value);
+    const If  = parseFloat(document.getElementById('ledIf').value) / 1000;
+    const N   = parseInt(document.getElementById('ledN').value) || 1;
+    const el  = document.getElementById('ledResult');
+    if ([Vcc, Vf, If].some(isNaN) || If <= 0) { el.innerHTML = alertBox('Введите корректные значения'); return; }
+    const Vdrop = Vcc - Vf * N;
+    if (Vdrop <= 0) { el.innerHTML = alertBox('Напряжение питания меньше суммарного падения на LED'); return; }
+    const R   = Vdrop / If;
+    const Pr  = Vdrop * If;
+    el.innerHTML = resultTable(
+        fmtRow('Сопротивление R', fmtOhm(R), '') +
+        fmtRow('Ближайший стандарт E24', fmtOhm(e24(R)), '') +
+        fmtRow('Мощность резистора', (Pr * 1000).toFixed(1), 'мВт') +
+        fmtRow('Падение напряжения на R', Vdrop.toFixed(3), 'В')
+    );
+}
+
+/* ─── Ряд E24 ─── */
+function e24(r) {
+    const e = [1.0,1.1,1.2,1.3,1.5,1.6,1.8,2.0,2.2,2.4,2.7,3.0,3.3,3.6,3.9,4.3,4.7,5.1,5.6,6.2,6.8,7.5,8.2,9.1];
+    const dec = Math.floor(Math.log10(r));
+    const base = Math.pow(10, dec);
+    const norm = r / base;
+    let best = e[0], bestD = Math.abs(e[0] - norm);
+    for (const v of e) { const d = Math.abs(v - norm); if (d < bestD) { bestD = d; best = v; } }
+    return best * base;
+}
+
+/* ─── База светодиодов ─── */
+const LEDS = [
+    // THT индикаторные
+    {m:'Красный THT 3мм/5мм',       color:'Красный',   vf:2.0, ifTyp:20, ifMax:30},
+    {m:'Жёлтый THT 3мм/5мм',        color:'Жёлтый',    vf:2.1, ifTyp:20, ifMax:30},
+    {m:'Оранжевый THT 3мм/5мм',     color:'Оранжевый', vf:2.1, ifTyp:20, ifMax:30},
+    {m:'Зелёный THT 3мм/5мм',       color:'Зелёный',   vf:2.2, ifTyp:20, ifMax:30},
+    {m:'Синий THT 3мм/5мм',         color:'Синий',     vf:3.2, ifTyp:20, ifMax:30},
+    {m:'Белый THT 3мм/5мм',         color:'Белый',     vf:3.2, ifTyp:20, ifMax:30},
+    {m:'УФ THT 3мм/5мм (395нм)',    color:'УФ',        vf:3.4, ifTyp:20, ifMax:30},
+    {m:'ИК THT 5мм (940нм)',        color:'ИК',        vf:1.2, ifTyp:20, ifMax:100},
+    {m:'ИК THT 5мм (850нм)',        color:'ИК',        vf:1.5, ifTyp:20, ifMax:100},
+    // SMD 0402
+    {m:'SMD 0402 Красный',          color:'Красный',   vf:2.0, ifTyp:10, ifMax:20},
+    {m:'SMD 0402 Зелёный',          color:'Зелёный',   vf:2.1, ifTyp:10, ifMax:20},
+    {m:'SMD 0402 Синий',            color:'Синий',     vf:3.2, ifTyp:10, ifMax:20},
+    {m:'SMD 0402 Белый',            color:'Белый',     vf:3.0, ifTyp:10, ifMax:20},
+    // SMD 0603
+    {m:'SMD 0603 Красный',          color:'Красный',   vf:2.0, ifTyp:10, ifMax:25},
+    {m:'SMD 0603 Жёлтый',           color:'Жёлтый',    vf:2.1, ifTyp:10, ifMax:25},
+    {m:'SMD 0603 Зелёный',          color:'Зелёный',   vf:2.1, ifTyp:10, ifMax:25},
+    {m:'SMD 0603 Синий',            color:'Синий',     vf:3.2, ifTyp:10, ifMax:25},
+    {m:'SMD 0603 Белый',            color:'Белый',     vf:3.0, ifTyp:10, ifMax:25},
+    {m:'SMD 0603 ИК (940нм)',       color:'ИК',        vf:1.2, ifTyp:10, ifMax:30},
+    // SMD 0805
+    {m:'SMD 0805 Красный',          color:'Красный',   vf:2.0, ifTyp:20, ifMax:30},
+    {m:'SMD 0805 Зелёный',          color:'Зелёный',   vf:2.1, ifTyp:20, ifMax:30},
+    {m:'SMD 0805 Синий',            color:'Синий',     vf:3.2, ifTyp:20, ifMax:30},
+    {m:'SMD 0805 Белый',            color:'Белый',     vf:3.0, ifTyp:20, ifMax:30},
+    // Конкретные модели
+    {m:'TLHR5400 (красный, THT)',    color:'Красный',   vf:2.0, ifTyp:20, ifMax:30},
+    {m:'TLMG5400 (зелёный, THT)',   color:'Зелёный',   vf:2.1, ifTyp:20, ifMax:30},
+    {m:'L-7113ID (красный, 5мм)',   color:'Красный',   vf:2.0, ifTyp:20, ifMax:30},
+    {m:'L-7113GD (зелёный, 5мм)',   color:'Зелёный',   vf:2.2, ifTyp:20, ifMax:30},
+    {m:'VLMU3100 (синий, SMD)',     color:'Синий',     vf:3.2, ifTyp:20, ifMax:30},
+    {m:'SFH4550 (ИК 950нм, THT)',  color:'ИК',        vf:1.35,ifTyp:20, ifMax:100},
+    {m:'TSUS5202 (ИК 950нм, SMD)', color:'ИК',        vf:1.3, ifTyp:20, ifMax:100},
+    {m:'WS2812B (1 канал, RGB)',    color:'RGB',       vf:3.3, ifTyp:16, ifMax:20},
+    {m:'APA102 (1 канал, RGB)',     color:'RGB',       vf:3.3, ifTyp:16, ifMax:20},
+];
+
+function ledFill() {
+    const sel = document.getElementById('ledSel');
+    const l = LEDS.find(x => x.m === sel.value);
+    if (!l) return;
+    document.getElementById('ledVf').value = l.vf;
+    document.getElementById('ledIf').value = l.ifTyp;
+}
+
+/* ─── База оптопар ─── */
+const OPTOS = [
+    {m:'PC817',  ctrMin:50,  ctrMax:300, vf:1.2, ifMax:50,  vce:0.2},
+    {m:'LTV-817',ctrMin:50,  ctrMax:300, vf:1.2, ifMax:50,  vce:0.2},
+    {m:'PC814',  ctrMin:50,  ctrMax:300, vf:1.2, ifMax:50,  vce:0.2},
+    {m:'TLP521-1',ctrMin:100,ctrMax:300, vf:1.15,ifMax:60,  vce:0.2},
+    {m:'TLP181', ctrMin:100, ctrMax:300, vf:1.2, ifMax:50,  vce:0.2},
+    {m:'TLP185', ctrMin:100, ctrMax:300, vf:1.2, ifMax:50,  vce:0.2},
+    {m:'4N25',   ctrMin:20,  ctrMax:100, vf:1.5, ifMax:60,  vce:0.5},
+    {m:'4N26',   ctrMin:20,  ctrMax:100, vf:1.5, ifMax:60,  vce:0.5},
+    {m:'4N35',   ctrMin:100, ctrMax:300, vf:1.5, ifMax:60,  vce:1.5},
+    {m:'4N28',   ctrMin:20,  ctrMax:80,  vf:1.5, ifMax:60,  vce:0.5},
+    {m:'MCT2E',  ctrMin:20,  ctrMax:100, vf:1.7, ifMax:60,  vce:1.0},
+    {m:'H11A1',  ctrMin:20,  ctrMax:100, vf:1.5, ifMax:60,  vce:0.4},
+    {m:'PS2501-1',ctrMin:100,ctrMax:600, vf:1.2, ifMax:50,  vce:0.2},
+    {m:'6N136',  ctrMin:10,  ctrMax:40,  vf:1.5, ifMax:15,  vce:0.4},
+    {m:'6N137',  ctrMin:10,  ctrMax:40,  vf:1.5, ifMax:15,  vce:0.5},
+    {m:'HCPL-2630',ctrMin:10,ctrMax:40,  vf:1.5, ifMax:15,  vce:0.5},
+    {m:'MOC3021',ctrMin:100, ctrMax:300, vf:1.5, ifMax:60,  vce:3.0},
+];
+
+function optoFill() {
+    const sel = document.getElementById('optoSel');
+    const m = OPTOS.find(o => o.m === sel.value);
+    if (!m) return;
+    document.getElementById('optoVf').value   = m.vf;
+    document.getElementById('optoCTR').value  = m.ctrMin;
+    document.getElementById('optoVceSat').value = m.vce;
+}
+
+function calcOpto() {
+    const Vcc    = parseFloat(document.getElementById('optoVcc').value);
+    const Vf     = parseFloat(document.getElementById('optoVf').value);
+    const If_mA  = parseFloat(document.getElementById('optoIf').value);
+    const CTR    = parseFloat(document.getElementById('optoCTR').value);
+    const VccOut = parseFloat(document.getElementById('optoVccOut').value);
+    const Vce    = parseFloat(document.getElementById('optoVceSat').value);
+    const el     = document.getElementById('optoResult');
+
+    if ([Vcc, Vf, If_mA, CTR, VccOut, Vce].some(isNaN) || If_mA <= 0 || CTR <= 0) {
+        el.innerHTML = alertBox('Введите корректные значения'); return;
+    }
+    const If  = If_mA / 1000;
+    const Rin = (Vcc - Vf) / If;
+    const Ic  = If * (CTR / 100);
+    const Rpull = (VccOut - Vce) / Ic;
+    const PrIn  = (Vcc - Vf) * If;
+    const PrPull= (VccOut - Vce) * Ic;
+
+    el.innerHTML = resultTable(
+        fmtRow('R<sub>вход</sub>', fmtOhm(Rin), '') +
+        fmtRow('R<sub>вход</sub> E24', fmtOhm(e24(Rin)), '') +
+        fmtRow('I<sub>c</sub> коллектора', (Ic * 1000).toFixed(2), 'мА') +
+        fmtRow('R<sub>нагрузка</sub> (pull-up)', fmtOhm(Rpull), '') +
+        fmtRow('R<sub>нагрузка</sub> E24', fmtOhm(e24(Rpull)), '') +
+        fmtRow('Мощность R<sub>вход</sub>', (PrIn * 1000).toFixed(1), 'мВт') +
+        fmtRow('Мощность R<sub>нагрузка</sub>', (PrPull * 1000).toFixed(1), 'мВт')
+    );
+}
+
+/* ─── Инициализация: заполнить select и таблицу оптопар и LED ─── */
+(function init() {
+    // LED
+    const ledSel   = document.getElementById('ledSel');
+    const ledTbody = document.querySelector('#ledTable tbody');
+    LEDS.forEach(l => {
+        const opt = document.createElement('option');
+        opt.value = l.m; opt.textContent = l.m;
+        ledSel.appendChild(opt);
+        ledTbody.insertAdjacentHTML('beforeend',
+            `<tr style="cursor:pointer" onclick="document.getElementById('ledSel').value='${l.m.replace(/'/g,"\\'")}';ledFill()">
+                <td><b>${l.m}</b></td><td>${l.color}</td>
+                <td>${l.vf}</td><td>${l.ifTyp}</td><td>${l.ifMax}</td>
+            </tr>`);
+    });
+
+    // Optocoupler
+    const sel = document.getElementById('optoSel');
+    const tbody = document.querySelector('#optoTable tbody');
+    OPTOS.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.m; opt.textContent = o.m;
+        sel.appendChild(opt);
+        tbody.insertAdjacentHTML('beforeend',
+            `<tr style="cursor:pointer" onclick="document.getElementById('optoSel').value='${o.m}';optoFill()">
+                <td><b>${o.m}</b></td><td>${o.ctrMin}</td><td>${o.ctrMax}</td>
+                <td>${o.vf}</td><td>${o.ifMax}</td><td>${o.vce}</td>
+            </tr>`);
+    });
+})();
+</script>
+{% endblock %}

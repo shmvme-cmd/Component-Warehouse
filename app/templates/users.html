@@ -1,17 +1,16 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-4">
-    <!-- Заголовок и статистика -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1"><i class="bi bi-people-fill me-2 text-primary"></i>Пользователи</h2>
-            <p class="text-muted mb-0">Управление пользователями и правами доступа</p>
-        </div>
-        <div class="text-end">
-            <span class="badge bg-primary fs-6">{{ users|length }} пользователей</span>
-        </div>
+<!-- Заголовок и статистика -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="mb-1"><i class="bi bi-people-fill me-2 text-primary"></i>Пользователи</h2>
+        <p class="text-muted mb-0">Управление пользователями и правами доступа</p>
     </div>
+    <div class="text-end">
+        <span class="badge bg-primary fs-6">{{ users|length }} пользователей</span>
+    </div>
+</div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -286,5 +285,4 @@
             </div>
         </div>
     </div>
-</div>
 {% endblock %}

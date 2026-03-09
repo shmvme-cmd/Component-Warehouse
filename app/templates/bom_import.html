@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-upload me-2 text-primary"></i>Импорт BOM</h2>
+    <a href="{{ url_for('bom.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Назад
+    </a>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Загрузка BOM-файла</div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.bom_file.label }}</label>
+                        {{ form.bom_file(class="form-control") }}
+                        <div class="form-text">Поддерживается формат EasyEDA/JLCPCB (CSV, разделитель TAB, UTF-16 или UTF-8)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.product_name.label }}</label>
+                        {{ form.product_name(class="form-control", placeholder="Оставьте пустым — имя возьмётся из файла") }}
+                    </div>
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-info-circle me-2"></i>Формат файла</div>
+            <div class="card-body small text-muted">
+                <p>Ожидаемые столбцы (tab-separated):</p>
+                <ul>
+                    <li><b>ID</b> — номер строки</li>
+                    <li><b>Name</b> — номинал/название компонента</li>
+                    <li><b>Designator</b> — позиционные обозначения (R1, C2, ...)</li>
+                    <li><b>Footprint</b> — посадочное место</li>
+                    <li><b>Quantity</b> — количество на плату</li>
+                    <li><b>Manufacturer Part</b> — артикул производителя</li>
+                    <li><b>Manufacturer</b> — производитель</li>
+                    <li><b>Supplier</b> — поставщик</li>
+                    <li><b>Supplier Part</b> — артикул поставщика</li>
+                    <li><b>Price</b> — цена</li>
+                </ul>
+                <p class="mb-0">После импорта будет открыта страница сопоставления BOM со складом.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

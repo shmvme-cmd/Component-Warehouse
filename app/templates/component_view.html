@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:900px">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-eye me-2 text-primary"></i>{{ component.name }}</h2>
+    <div class="d-flex gap-2">
+        {% if current_user.role == 'super_admin' or (current_user.can_edit_components and (current_user.role != 'admin' or component.created_by_id == current_user.id)) %}
+            <a href="{{ url_for('components.edit', id=component.id) }}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil me-1"></i>Редактировать
+            </a>
+        {% endif %}
+        <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Назад
+        </a>
+    </div>
+</div>
+
+    <div class="row g-4">
+        <!-- Основная информация -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-info-circle me-2"></i>Основная информация</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5 text-muted fw-normal">Название</dt>
+                        <dd class="col-7 fw-semibold">{{ component.name }}</dd>
+
+                        <dt class="col-5 text-muted fw-normal">Производитель</dt>
+                        <dd class="col-7">{{ component.manufacturer or '—' }}</dd>
+
+                        <dt class="col-5 text-muted fw-normal">Дата поступления</dt>
+                        <dd class="col-7">{{ component.arrival_date.strftime('%d.%m.%Y') if component.arrival_date else '—' }}</dd>
+
+                        <dt class="col-5 text-muted fw-normal">Местоположение</dt>
+                        <dd class="col-7">{{ component.location or '—' }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Классификация -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-diagram-3 me-2"></i>Классификация</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5 text-muted fw-normal">Группа</dt>
+                        <dd class="col-7">
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                {{ component.comp_type.subgroup.group.name if component.comp_type and component.comp_type.subgroup else '—' }}
+                            </span>
+                        </dd>
+
+                        <dt class="col-5 text-muted fw-normal">Подгруппа</dt>
+                        <dd class="col-7">
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">
+                                {{ component.comp_type.subgroup.name if component.comp_type and component.comp_type.subgroup else '—' }}
+                            </span>
+                        </dd>
+
+                        <dt class="col-5 text-muted fw-normal">Тип</dt>
+                        <dd class="col-7">{{ component.comp_type.name if component.comp_type else '—' }}</dd>
+
+                        <dt class="col-5 text-muted fw-normal">Корпус</dt>
+                        <dd class="col-7">{{ component.housing.housing_name if component.housing else '—' }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- Технические параметры -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-cpu me-2"></i>Технические параметры</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5 text-muted fw-normal">Номинал</dt>
+                        <dd class="col-7 fw-semibold">
+                            {% if component.nominal_value %}
+                                {{ component.nominal_value | fnum }} {{ component.unit or '' }}
+                            {% else %}—{% endif %}
+                        </dd>
+
+                        <dt class="col-5 text-muted fw-normal">Единица</dt>
+                        <dd class="col-7">{{ component.unit or '—' }}</dd>
+                    </dl>
+                    {% if component.parameters and component.parameters not in ('""', '{}', 'null', '') %}
+                        <hr class="my-2">
+                        <p class="text-muted small mb-1">Доп. параметры</p>
+                        <div class="small text-break">{{ component.parameters }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Склад -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header"><i class="bi bi-archive me-2"></i>Склад и стоимость</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-5 text-muted fw-normal">Количество</dt>
+                        <dd class="col-7">
+                            <span class="badge fs-6 {{ 'bg-warning text-dark' if component.quantity < 10 else 'bg-success' }}">
+                                {{ component.quantity }} шт.
+                            </span>
+                        </dd>
+
+                        <dt class="col-5 text-muted fw-normal">Цена</dt>
+                        <dd class="col-7">{{ ('%.2f' % component.price) + ' ₽' if component.price else '—' }}</dd>
+
+                        <dt class="col-5 text-muted fw-normal">Добавил</dt>
+                        <dd class="col-7">{{ component.created_by.username if component.created_by else '—' }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- История (последние 5) -->
+    {% if component.history %}
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clock-history me-2"></i>Последние изменения</span>
+            <a href="{{ url_for('components.history', id=component.id) }}" class="btn btn-outline-secondary btn-sm">
+                Вся история
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead><tr>
+                    <th>Дата</th><th>Пользователь</th><th>Действие</th><th>Поле</th><th>Было</th><th>Стало</th>
+                </tr></thead>
+                <tbody>
+                    {% for h in recent_history %}
+                    <tr>
+                        <td class="text-muted small">{{ h.timestamp.strftime('%d.%m.%Y %H:%M') }}</td>
+                        <td>{{ h.user.username if h.user else '—' }}</td>
+                        <td><span class="badge bg-{{ 'success' if h.action == 'create' else 'primary' if h.action == 'update' else 'secondary' }}">{{ h.action }}</span></td>
+                        <td class="text-muted small">{{ h.field_changed or '—' }}</td>
+                        <td class="text-muted small">{{ h.old_value or '—' }}</td>
+                        <td class="small">{{ h.new_value or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>{# /max-width #}
+{% endblock %}

@@ -102,3 +102,49 @@ class ComponentHistory(db.Model):
     new_value = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     user = db.relationship('User', backref=db.backref('history', lazy=True))
+
+
+class ComponentLibrary(db.Model):
+    """Библиотека компонентов — спецификации без складских остатков."""
+    __tablename__ = 'component_library'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    type_id = db.Column(db.Integer, db.ForeignKey('component_type.id'), nullable=False)
+    housing_id = db.Column(db.Integer, db.ForeignKey('housing.id'), nullable=True)
+    manufacturer = db.Column(db.String(100), nullable=True)
+    nominal_value = db.Column(db.Float, nullable=True)
+    unit = db.Column(db.String(20), nullable=True)
+    parameters = db.Column(db.Text, nullable=True)
+    description = db.Column(db.Text, nullable=True)
+    comp_type = db.relationship('ComponentType', backref=db.backref('library_items', lazy=True))
+    housing = db.relationship('Housing', backref=db.backref('library_items', lazy=True))
+    __table_args__ = (db.UniqueConstraint('name', 'type_id', 'housing_id', name='unique_lib_name_type_housing'),)
+
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    bom_items = db.relationship('BomItem', backref='product', lazy=True,
+                                cascade='all, delete-orphan')
+    created_by = db.relationship('User', backref=db.backref('products', lazy=True))
+
+
+class BomItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+    bom_id = db.Column(db.String(20), nullable=True)
+    name = db.Column(db.String(200), nullable=False)
+    designator = db.Column(db.String(500), nullable=True)
+    footprint = db.Column(db.String(200), nullable=True)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    manufacturer_part = db.Column(db.String(200), nullable=True)
+    manufacturer = db.Column(db.String(200), nullable=True)
+    supplier = db.Column(db.String(100), nullable=True)
+    supplier_part = db.Column(db.String(200), nullable=True)
+    price = db.Column(db.Float, nullable=True)
+    component_id = db.Column(db.Integer, db.ForeignKey('component.id'), nullable=True)
+    match_confidence = db.Column(db.Float, nullable=True)
+    component = db.relationship('Component', backref=db.backref('bom_items', lazy=True))

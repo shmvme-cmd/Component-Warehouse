@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-file-earmark-spreadsheet me-2 text-primary"></i>Изделия / BOM</h2>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('bom.import_bom') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-upload me-1"></i>Импорт BOM
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="row g-4">
+    <!-- Форма создания -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Новое изделие</div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.name.label }}</label>
+                        {{ form.name(class="form-control", placeholder="Название изделия") }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">{{ form.description.label }}</label>
+                        {{ form.description(class="form-control", placeholder="Описание (необязательно)") }}
+                    </div>
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Список изделий -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-ul me-2"></i>Список изделий</span>
+                <span class="badge bg-primary rounded-pill">{{ products | length }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Название</th>
+                            <th class="text-center">Позиций</th>
+                            <th class="text-center">Сопоставлено</th>
+                            <th>Создал</th>
+                            <th>Дата</th>
+                            <th class="text-center">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in products %}
+                        {% set matched = p.bom_items | selectattr('component_id') | list | length %}
+                        <tr>
+                            <td class="fw-semibold">{{ p.name }}</td>
+                            <td class="text-center">{{ p.bom_items | length }}</td>
+                            <td class="text-center">
+                                {% set total = p.bom_items | length %}
+                                {% if total > 0 %}
+                                    <span class="badge {{ 'bg-success' if matched == total else 'bg-warning text-dark' }}">
+                                        {{ matched }}/{{ total }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ p.created_by.username if p.created_by else '—' }}</td>
+                            <td class="text-muted small">{{ p.created_at.strftime('%d.%m.%Y') }}</td>
+                            <td class="text-center" style="white-space:nowrap">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="{{ url_for('bom.view', id=p.id) }}"
+                                       class="btn btn-outline-secondary" title="Открыть" data-bs-toggle="tooltip">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('bom.match', id=p.id) }}"
+                                       class="btn btn-outline-primary" title="Сопоставить" data-bs-toggle="tooltip">
+                                        <i class="bi bi-link-45deg"></i>
+                                    </a>
+                                    {% if current_user.role == 'super_admin' or current_user.can_delete_components %}
+                                    <form method="POST" action="{{ url_for('bom.delete', id=p.id) }}" class="d-inline"
+                                          onsubmit="return confirm('Удалить изделие «{{ p.name }}»?')">
+                                        {{ form.hidden_tag() }}
+                                        <button type="submit" class="btn btn-outline-danger" title="Удалить" data-bs-toggle="tooltip">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox display-4 d-block mb-2"></i>
+                            Нет изделий. Создайте карточку или импортируйте BOM.
+                        </td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+</script>
+{% endblock %}

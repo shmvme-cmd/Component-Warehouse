@@ -1,13 +1,13 @@
 ﻿{% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-4" style="max-width:900px">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-pencil-square me-2 text-primary"></i>Редактировать: {{ component.name }}</h2>
-        <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Назад
-        </a>
-    </div>
+<div style="max-width:900px">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-pencil-square me-2 text-primary"></i>Редактировать: {{ component.name }}</h2>
+    <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Назад
+    </a>
+</div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -71,7 +71,8 @@
                     </div>
                     <div class="col-md-4">
                         {{ form.nominal_value.label(class="form-label") }}
-                        {{ form.nominal_value(class="form-control") }}
+                        {{ form.nominal_value(class="form-control",
+                            value=(form.nominal_value.data | fnum if form.nominal_value.data is not none else '')) }}
                     </div>
                     <div class="col-md-4">
                         {{ form.unit.label(class="form-label") }}

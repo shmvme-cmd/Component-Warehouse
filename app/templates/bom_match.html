@@ -1,0 +1,842 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2><i class="bi bi-link-45deg me-2 text-primary"></i>Сопоставление BOM</h2>
+        <p class="text-muted mb-0">{{ product.name }}</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        {# Merge form — populated by JS #}
+        <form method="POST" action="{{ url_for('bom.merge_items', id=product.id) }}" id="mergeForm">
+            {{ csrf_form.hidden_tag() }}
+            <div id="mergeHidden"></div>
+            <button type="submit" class="btn btn-outline-warning btn-sm" id="mergeBtn" disabled>
+                <i class="bi bi-union me-1"></i>Объединить (<span id="mergeCount">0</span>)
+            </button>
+        </form>
+        <a href="{{ url_for('bom.view', id=product.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left me-1"></i>Назад
+        </a>
+    </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}{% endif %}
+{% endwith %}
+
+{# ── Main match form ── #}
+<form method="POST" id="matchForm">
+    {{ csrf_form.hidden_tag() }}
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-table me-2"></i>Позиции BOM</span>
+            <button type="submit" class="btn btn-success btn-sm">
+                <i class="bi bi-check-lg me-1"></i>Сохранить сопоставление
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:32px"><input type="checkbox" id="selectAll" title="Выбрать все"></th>
+                        <th title="ID из BOM">#</th>
+                        <th>Designator</th>
+                        <th>Footprint</th>
+                        <th class="text-center">Кол-во</th>
+                        <th title="Name (номинал) / Manufacturer Part (название)">Компонент</th>
+                        <th class="text-center">%</th>
+                        <th style="width:36px"></th>
+                        <th style="min-width:260px">Компонент на складе</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in product.bom_items %}
+                    <tr id="row_{{ item.id }}">
+                        <td><input type="checkbox" class="item-check" value="{{ item.id }}"></td>
+                        <td class="text-muted small">{{ item.bom_id or loop.index }}</td>
+                        <td class="small" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                            title="{{ item.designator }}">{{ item.designator or '—' }}</td>
+                        <td class="small text-muted" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                            title="{{ item.footprint }}">{{ item.footprint or '—' }}</td>
+                        <td class="text-center">{{ item.quantity }}</td>
+                        <td>
+                            {# Если Manufacturer Part есть и отличается от Name — показываем оба #}
+                            {% if item.manufacturer_part and item.manufacturer_part != item.name %}
+                                <span class="fw-semibold">{{ item.manufacturer_part }}</span>
+                                <br><span class="small text-muted" title="Name (номинал)">{{ item.name }}</span>
+                            {% else %}
+                                <span class="fw-semibold">{{ item.name }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if item.match_confidence %}
+                                {% set pct = (item.match_confidence * 100) | int %}
+                                <span class="badge {{ 'bg-success' if pct >= 90 else 'bg-warning text-dark' if pct >= 60 else 'bg-secondary' }}">
+                                    {{ pct }}%
+                                </span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                {# Edit button #}
+                                <button type="button" class="btn btn-outline-secondary"
+                                        data-bs-toggle="modal" data-bs-target="#editModal{{ item.id }}"
+                                        title="Редактировать позицию">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                {# Create component button (only if unmatched) #}
+                                {% if not item.component_id %}
+                                <button type="button" class="btn btn-outline-success"
+                                        data-bs-toggle="modal" data-bs-target="#createModal{{ item.id }}"
+                                        title="Создать компонент на складе">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                                {% endif %}
+                                {# Add to library button #}
+                                <button type="button" class="btn btn-outline-info"
+                                        title="Добавить в библиотеку"
+                                        data-name="{{ item.name }}"
+                                        data-mfr-part="{{ item.manufacturer_part or '' }}"
+                                        data-manufacturer="{{ item.manufacturer or '' }}"
+                                        data-footprint="{{ item.footprint or '' }}"
+                                        data-action="{{ url_for('bom.add_to_library', id=product.id, item_id=item.id) }}"
+                                        onclick="openLibModal(this)">
+                                    <i class="bi bi-journal-plus"></i>
+                                </button>
+                            </div>
+                        </td>
+                        <td>
+                            <select name="component_{{ item.id }}" class="form-select form-select-sm">
+                                <option value="0">— не сопоставлен —</option>
+                                {% for comp in all_components %}
+                                <option value="{{ comp.id }}"
+                                    {{ 'selected' if item.component_id == comp.id else '' }}>
+                                    {{ comp.name }}{% if comp.housing %} [{{ comp.housing.housing_name }}]{% endif %} ({{ comp.quantity }} шт.)
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="9" class="text-center text-muted py-4">BOM пуст.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="d-flex justify-content-end gap-2 mb-4">
+        <a href="{{ url_for('bom.view', id=product.id) }}" class="btn btn-outline-secondary">Отмена</a>
+        <button type="submit" class="btn btn-success">
+            <i class="bi bi-check-lg me-1"></i>Сохранить сопоставление
+        </button>
+    </div>
+</form>
+
+{# ── Edit modals (outside main form) ── #}
+{% for item in product.bom_items %}
+<div class="modal fade" id="editModal{{ item.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Редактировать позицию</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('bom.edit_bom_item', id=product.id, item_id=item.id) }}">
+                {{ csrf_form.hidden_tag() }}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Номинал (Name)</label>
+                        <input type="text" name="name" class="form-control" value="{{ item.name }}" required>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label">Кол-во</label>
+                            <input type="number" name="quantity" class="form-control" value="{{ item.quantity }}" min="1" required>
+                        </div>
+                        <div class="col-8">
+                            <label class="form-label">Designator</label>
+                            <input type="text" name="designator" class="form-control" value="{{ item.designator or '' }}">
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <label class="form-label">Footprint</label>
+                            <input type="text" name="footprint" class="form-control" value="{{ item.footprint or '' }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Manufacturer Part</label>
+                            <input type="text" name="manufacturer_part" class="form-control" value="{{ item.manufacturer_part or '' }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# Create component modal (only for unmatched) #}
+{% if not item.component_id %}
+<div class="modal fade" id="createModal{{ item.id }}" tabindex="-1"
+     data-item-footprint="{{ item.footprint or '' }}">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Создать компонент</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('bom.create_component_from_bom', id=product.id, item_id=item.id) }}">
+                {{ csrf_form.hidden_tag() }}
+                <div class="modal-body">
+
+                    {# ── BOM-контекст ── #}
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body py-2 px-3">
+                            <div class="row g-1 small mb-1">
+                                <div class="col-auto text-muted">ID:</div>
+                                <div class="col-auto fw-semibold">{{ item.bom_id or '—' }}</div>
+                                <div class="col-auto text-muted ms-3">Designator:</div>
+                                <div class="col-auto fw-semibold">{{ item.designator or '—' }}</div>
+                                <div class="col-auto text-muted ms-3">Qty:</div>
+                                <div class="col-auto fw-semibold">{{ item.quantity }}</div>
+                            </div>
+                            <div class="row g-2 small">
+                                <div class="col-6">
+                                    <span class="text-muted">Name (номинал):</span>
+                                    <span class="fw-semibold">{{ item.name }}</span>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1"
+                                            onclick="fillName({{ item.id }}, this.dataset.v)"
+                                            data-v="{{ item.name }}"
+                                            title="Использовать как название компонента">
+                                        <i class="bi bi-arrow-down-short"></i>
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <span class="text-muted">Manufacturer Part:</span>
+                                    {% if item.manufacturer_part %}
+                                        <span class="fw-semibold">{{ item.manufacturer_part }}</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1"
+                                                onclick="fillName({{ item.id }}, this.dataset.v)"
+                                                data-v="{{ item.manufacturer_part }}"
+                                                title="Использовать как название компонента">
+                                            <i class="bi bi-arrow-down-short"></i>
+                                        </button>
+                                    {% else %}
+                                        <span class="text-muted fst-italic">не указан</span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-12">
+                                    <span class="text-muted">Footprint:</span>
+                                    <span class="fw-semibold font-monospace">{{ item.footprint or '—' }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# ── Поля компонента ── #}
+                    <p class="text-muted small mb-2">Компонент будет создан с кол-вом 0 и сразу сопоставлен с этой позицией BOM.</p>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Название компонента *</label>
+                        <div class="input-group">
+                            <input type="text" name="name" class="form-control" id="cName_{{ item.id }}"
+                                   value="{{ item.manufacturer_part or item.name }}" required>
+                            <button type="button" class="btn btn-outline-info" onclick="aiLookup({{ item.id }})">
+                                <i class="bi bi-robot"></i> ИИ
+                            </button>
+                        </div>
+                        <span id="aiStat_{{ item.id }}" class="small text-muted"></span>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label">Группа</label>
+                            <select class="form-select form-select-sm" id="cGroup_{{ item.id }}" onchange="loadSubgroups({{ item.id }})">
+                                <option value="0">Выберите…</option>
+                                {% for g in all_groups %}
+                                <option value="{{ g.id }}">{{ g.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Подгруппа</label>
+                            <select class="form-select form-select-sm" id="cSubgroup_{{ item.id }}" onchange="loadTypes({{ item.id }})">
+                                <option value="0">Выберите…</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Тип *</label>
+                            <select class="form-select form-select-sm" name="type_id" id="cType_{{ item.id }}" required>
+                                <option value="0">Выберите…</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">
+                                Корпус
+                                <span id="cHousingSug_{{ item.id }}" class="small text-info ms-1"></span>
+                            </label>
+                            <select class="form-select form-select-sm" name="housing_id" id="cHousing_{{ item.id }}">
+                                <option value="0">— нет —</option>
+                                {% for h in all_housings %}
+                                <option value="{{ h.id }}">{{ h.housing_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Производитель</label>
+                            <input type="text" name="manufacturer" class="form-control form-control-sm"
+                                   value="{{ item.manufacturer or '' }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-plus-circle me-1"></i>Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<script>
+// ── Checkbox merge logic ──
+const selectAll = document.getElementById('selectAll');
+const mergeBtn = document.getElementById('mergeBtn');
+const mergeCount = document.getElementById('mergeCount');
+const mergeHidden = document.getElementById('mergeHidden');
+
+function updateMerge() {
+    const checked = [...document.querySelectorAll('.item-check:checked')];
+    mergeCount.textContent = checked.length;
+    mergeBtn.disabled = checked.length < 2;
+    mergeHidden.innerHTML = '';
+    checked.forEach(cb => {
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = 'item_ids'; inp.value = cb.value;
+        mergeHidden.appendChild(inp);
+    });
+}
+document.querySelectorAll('.item-check').forEach(cb => cb.addEventListener('change', updateMerge));
+selectAll.addEventListener('change', function() {
+    document.querySelectorAll('.item-check').forEach(cb => cb.checked = this.checked);
+    updateMerge();
+});
+
+// ── Quick-fill component name from BOM field ──
+function fillName(itemId, value) {
+    document.getElementById('cName_' + itemId).value = value;
+}
+
+// ── Footprint → housing suggestion ──
+const FOOTPRINT_PATTERNS = [
+    // Numeric SMD: (?<!\d)/(?!\d) so C0603, R0603, _0603_ all match
+    [/(?<!\d)01005(?!\d)/i, '01005'],
+    [/(?<!\d)0201(?!\d)/i,  '0201'],
+    [/(?<!\d)0402(?!\d)/i,  '0402'],
+    [/(?<!\d)0603(?!\d)/i,  '0603'],
+    [/(?<!\d)0805(?!\d)/i,  '0805'],
+    [/(?<!\d)1206(?!\d)/i,  '1206'],
+    [/(?<!\d)1210(?!\d)/i,  '1210'],
+    [/(?<!\d)2010(?!\d)/i,  '2010'],
+    [/(?<!\d)2512(?!\d)/i,  '2512'],
+    // Named packages (longer variants first to avoid SOT-23 matching SOT-223)
+    [/SOT-?223/i,           'SOT-223'],
+    [/SOT-?23(?!\d)/i,      'SOT-23'],
+    [/SOT-?323/i,           'SOT-323'],
+    [/SOT-?363/i,           'SOT-363'],
+    [/SOT-?89/i,            'SOT-89'],
+    [/SOD-?323/i,           'SOD-323'],
+    [/SOD-?123/i,           'SOD-123'],
+    [/DO-?214/i,            'DO-214'],
+    [/SOIC-?16|SOP-?16/i,   'SOIC-16'],
+    [/SOIC-?8(?!\d)|SOP-?8(?!\d)/i, 'SOIC-8'],
+    [/TSSOP-?16/i,          'TSSOP-16'],
+    [/TSSOP-?8(?!\d)/i,     'TSSOP-8'],
+    [/DIP-?14/i,            'DIP-14'],
+    [/DIP-?16/i,            'DIP-16'],
+    [/DIP-?8(?!\d)/i,       'DIP-8'],
+    [/TO-?220/i,            'TO-220'],
+    [/TO-?263/i,            'TO-263'],
+    [/TO-?92/i,             'TO-92'],
+];
+
+function suggestHousing(itemId, footprint) {
+    if (!footprint) return;
+    const hSel = document.getElementById('cHousing_' + itemId);
+    const sugSpan = document.getElementById('cHousingSug_' + itemId);
+    if (!hSel) return;
+
+    let suggested = null;
+    for (const [re, pkg] of FOOTPRINT_PATTERNS) {
+        if (re.test(footprint)) { suggested = pkg; break; }
+    }
+    if (!suggested) return;
+
+    // Find option matching suggested (case-insensitive, partial)
+    const sl = suggested.toLowerCase().replace(/[-_]/g, '');
+    for (let opt of hSel.options) {
+        const ol = opt.text.toLowerCase().replace(/[-_]/g, '');
+        if (ol === sl || ol.includes(sl) || sl.includes(ol)) {
+            hSel.value = opt.value;
+            if (sugSpan) sugSpan.textContent = '(из Footprint: ' + suggested + ')';
+            return;
+        }
+    }
+    // Not found in options — just show hint
+    if (sugSpan) sugSpan.textContent = '(Footprint: ' + suggested + ')';
+}
+
+// Auto-suggest housing when create modal opens
+document.querySelectorAll('[id^="createModal"]').forEach(modal => {
+    modal.addEventListener('show.bs.modal', function() {
+        const itemId = this.id.replace('createModal', '');
+        const footprint = this.dataset.itemFootprint || '';
+        suggestHousing(itemId, footprint);
+    });
+});
+
+// ── Cascading selects for create-component modals ──
+function loadSubgroups(itemId) {
+    const gid = document.getElementById('cGroup_' + itemId).value;
+    const subSel = document.getElementById('cSubgroup_' + itemId);
+    const typeSel = document.getElementById('cType_' + itemId);
+    subSel.innerHTML = '<option value="0">Выберите…</option>';
+    typeSel.innerHTML = '<option value="0">Выберите…</option>';
+    if (gid && gid != '0') {
+        fetch('/get_subgroups/' + gid)
+            .then(r => r.json())
+            .then(data => data.forEach(s => subSel.add(new Option(s.name, s.id))));
+    }
+}
+function loadTypes(itemId) {
+    const sid = document.getElementById('cSubgroup_' + itemId).value;
+    const typeSel = document.getElementById('cType_' + itemId);
+    typeSel.innerHTML = '<option value="0">Выберите…</option>';
+    if (sid && sid != '0') {
+        fetch('/get_types/' + sid)
+            .then(r => r.json())
+            .then(data => data.forEach(t => typeSel.add(new Option(t.name, t.id))));
+    }
+}
+
+// ── AI lookup for create-component modals ──
+function aiLookup(itemId) {
+    const name = document.getElementById('cName_' + itemId).value.trim();
+    if (!name) return;
+    const stat = document.getElementById('aiStat_' + itemId);
+    stat.textContent = 'Запрос…';
+    fetch('/api/lookup_component', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('input[name=csrf_token]').value
+        },
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) { stat.textContent = 'Ошибка: ' + data.error; return; }
+
+        // Housing — по ID или по тексту (fuzzy)
+        const hSel = document.getElementById('cHousing_' + itemId);
+        if (hSel) {
+            if (data.housing_id) {
+                hSel.value = data.housing_id;
+            } else if (data.housing) {
+                const hw = data.housing.toLowerCase();
+                for (let opt of hSel.options) {
+                    const ot = opt.text.toLowerCase();
+                    if (ot === hw || ot.includes(hw) || hw.includes(ot.replace(/[^a-z0-9]/g,''))) {
+                        hSel.value = opt.value; break;
+                    }
+                }
+            }
+        }
+
+        // Cascade group → subgroup → type
+        if (data.group_id && data.subgroup_id && data.type_id) {
+            document.getElementById('cGroup_' + itemId).value = data.group_id;
+            fetch('/get_subgroups/' + data.group_id)
+                .then(r => r.json())
+                .then(subs => {
+                    const subSel = document.getElementById('cSubgroup_' + itemId);
+                    subSel.innerHTML = '<option value="0">Выберите…</option>';
+                    subs.forEach(s => subSel.add(new Option(s.name, s.id)));
+                    subSel.value = data.subgroup_id;
+                    return fetch('/get_types/' + data.subgroup_id);
+                })
+                .then(r => r.json())
+                .then(types => {
+                    const typeSel = document.getElementById('cType_' + itemId);
+                    typeSel.innerHTML = '<option value="0">Выберите…</option>';
+                    types.forEach(t => typeSel.add(new Option(t.name, t.id)));
+                    typeSel.value = data.type_id;
+                    stat.textContent = 'Заполнено ✓';
+                });
+        } else {
+            stat.textContent = 'Заполнено ✓ (тип не определён)';
+        }
+    })
+    .catch(() => { stat.textContent = 'Ошибка сети'; });
+}
+
+// ── Library modal (shared, populated by JS) ──────────────────────────────────
+let _libModal = null;
+
+function openLibModal(btn) {
+    const name = btn.dataset.name || '';
+    const mfrPart = btn.dataset.mfrPart || '';
+    const manufacturer = btn.dataset.manufacturer || '';
+    const footprint = btn.dataset.footprint || '';
+    const actionUrl = btn.dataset.action;
+
+    // Set form action
+    document.getElementById('libForm').action = actionUrl;
+
+    // Pre-fill fields
+    document.getElementById('libName').value = mfrPart || name;
+    document.getElementById('libManufacturer').value = manufacturer || '';
+    document.getElementById('libDescription').value = '';
+
+    // Quick-fill buttons
+    const btns = document.getElementById('libNameBtns');
+    btns.innerHTML = '';
+    if (mfrPart) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn btn-outline-secondary btn-sm';
+        b.innerHTML = '<i class="bi bi-arrow-down-short"></i> Из Mfr Part';
+        b.onclick = () => document.getElementById('libName').value = mfrPart;
+        btns.appendChild(b);
+    }
+    if (name && name !== mfrPart) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn btn-outline-secondary btn-sm';
+        b.innerHTML = '<i class="bi bi-arrow-down-short"></i> Из Name';
+        b.onclick = () => document.getElementById('libName').value = name;
+        btns.appendChild(b);
+    }
+
+    // Context card
+    document.getElementById('libContext').innerHTML = `
+        <div class="card-body py-2 px-3 small">
+            <div class="row g-1">
+                <div class="col-6"><span class="text-muted">Name:</span> <b>${name}</b></div>
+                <div class="col-6"><span class="text-muted">Mfr Part:</span> <b>${mfrPart || '—'}</b></div>
+                <div class="col-12"><span class="text-muted">Footprint:</span> <code>${footprint || '—'}</code></div>
+            </div>
+        </div>`;
+
+    // Reset cascading selects
+    document.getElementById('libGroup').value = '0';
+    document.getElementById('libSubgroup').innerHTML = '<option value="0">Выберите…</option>';
+    document.getElementById('libType').innerHTML = '<option value="0">Выберите…</option>';
+    document.getElementById('libHousing').value = '0';
+    document.getElementById('libHousingSug').textContent = '';
+    document.getElementById('libDetectStat').textContent = '';
+
+    // Auto-detect component type + housing from value and footprint
+    _detectAndFillLibType(name, footprint);
+
+    if (!_libModal) _libModal = new bootstrap.Modal(document.getElementById('libModal'));
+    _libModal.show();
+}
+
+// ── Auto-detect component type ──────────────────────────────────────────────
+const _CAT_RU = {
+    capacitor: 'конденсатор', resistor: 'резистор',
+    inductor: 'катушка индуктивности', diode: 'диод',
+    transistor: 'транзистор', led: 'светодиод',
+    crystal: 'кварц', fuse: 'предохранитель',
+};
+
+function _detectAndFillLibType(name, footprint) {
+    if (!name && !footprint) return;
+    const stat = document.getElementById('libDetectStat');
+    stat.textContent = 'Определяю тип…';
+    stat.className = 'small text-muted mt-1 d-block';
+    const params = new URLSearchParams();
+    if (name) params.set('name', name);
+    if (footprint) params.set('footprint', footprint);
+    fetch('/api/detect_type?' + params)
+        .then(r => r.json())
+        .then(data => { _fillLibCascade(data); })
+        .catch(() => { stat.textContent = ''; stat.className = ''; });
+}
+
+function _fillLibCascade(data) {
+    const stat = document.getElementById('libDetectStat');
+
+    // No data at all
+    if (!data || !Object.keys(data).length) {
+        stat.textContent = '';
+        stat.className = '';
+        return;
+    }
+
+    // Apply housing from footprint (always, regardless of group/type detection)
+    const hSel = document.getElementById('libHousing');
+    if (data.housing_id) {
+        hSel.value = String(data.housing_id);
+        const hName = hSel.options[hSel.selectedIndex]?.text || '';
+        document.getElementById('libHousingSug').textContent = hName ? `(из Footprint: ${hName})` : '';
+    }
+
+    // If no group found — show status and stop (housing already applied above)
+    if (!data.group_id) {
+        const catLabel = data.category ? (_CAT_RU[data.category] || data.category) : '';
+        const hName = data.housing_id ? (hSel.options[hSel.selectedIndex]?.text || '') : '';
+        if (catLabel && hName)      { stat.textContent = `Категория «${catLabel}» не найдена в базе; корпус: ${hName} ✓`; stat.className = 'small text-warning mt-1 d-block'; }
+        else if (hName)             { stat.textContent = `Корпус: ${hName} ✓`; stat.className = 'small text-success mt-1 d-block'; }
+        else if (catLabel)          { stat.textContent = `Категория «${catLabel}» не найдена в базе`; stat.className = 'small text-warning mt-1 d-block'; }
+        else                        { stat.textContent = ''; stat.className = ''; }
+        return;
+    }
+
+    // Fill group → subgroup → type cascade
+    document.getElementById('libGroup').value = String(data.group_id);
+    const subSel = document.getElementById('libSubgroup');
+    const typSel = document.getElementById('libType');
+    subSel.innerHTML = '<option value="0">Выберите…</option>';
+    typSel.innerHTML = '<option value="0">Выберите…</option>';
+
+    fetch('/get_subgroups/' + data.group_id).then(r => r.json()).then(subs => {
+        subs.forEach(s => subSel.add(new Option(s.name, s.id)));
+        if (data.subgroup_id) subSel.value = String(data.subgroup_id);
+        const sid = data.subgroup_id || (subSel.value !== '0' ? subSel.value : null);
+        if (!sid) return Promise.resolve();
+        return fetch('/get_types/' + sid).then(r => r.json()).then(types => {
+            types.forEach(t => typSel.add(new Option(t.name, t.id)));
+            if (data.type_id) typSel.value = String(data.type_id);
+        });
+    }).then(() => {
+        const catLabel = _CAT_RU[data.category] || data.category || '';
+        const hName = data.housing_id ? (hSel.options[hSel.selectedIndex]?.text || '') : '';
+        const parts = [];
+        if (catLabel) parts.push(catLabel);
+        if (hName)    parts.push(`корпус: ${hName}`);
+        stat.textContent = (parts.length ? parts.join(', ') : 'Определено') + ' ✓';
+        stat.className = 'small text-success mt-1 d-block';
+    }).catch(() => {});
+}
+
+function _libApplyLookupResult(data, source) {
+    const stat = document.getElementById('libDetectStat');
+    if (data.error) {
+        stat.textContent = source + ': ' + data.error;
+        stat.className = 'small text-danger mt-1 d-block';
+        return;
+    }
+    if (data.manufacturer && !document.getElementById('libManufacturer').value)
+        document.getElementById('libManufacturer').value = data.manufacturer;
+    if (data.description && !document.getElementById('libDescription').value)
+        document.getElementById('libDescription').value = data.description;
+    // If Mouser found the real MPN and it's different from current name, offer it
+    if (data.manufacturer_part) {
+        const nameEl = document.getElementById('libName');
+        if (!nameEl.value || nameEl.value === nameEl.dataset.origName)
+            nameEl.value = data.manufacturer_part;
+    }
+    _fillLibCascade(data);
+}
+
+function _libMouserLookup() {
+    const name = document.getElementById('libName').value.trim();
+    if (!name) return;
+    const stat = document.getElementById('libDetectStat');
+    stat.textContent = 'Поиск в Mouser…';
+    stat.className = 'small text-muted mt-1 d-block';
+    const csrf = document.querySelector('#libForm input[name=csrf_token]').value;
+    fetch('/api/mouser_lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => _libApplyLookupResult(data, 'Mouser'))
+    .catch(() => { stat.textContent = 'Ошибка сети'; stat.className = 'small text-danger mt-1 d-block'; });
+}
+
+function _libLcscLookup() {
+    const name = document.getElementById('libName').value.trim();
+    if (!name) return;
+    const stat = document.getElementById('libDetectStat');
+    stat.textContent = 'Поиск в LCSC…';
+    stat.className = 'small text-muted mt-1 d-block';
+    const csrf = document.querySelector('#libForm input[name=csrf_token]').value;
+    fetch('/api/lcsc_lookup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => _libApplyLookupResult(data, 'LCSC'))
+    .catch(() => { stat.textContent = 'Ошибка сети'; stat.className = 'small text-danger mt-1 d-block'; });
+}
+
+function _libAiLookup() {
+    const name = document.getElementById('libName').value.trim();
+    if (!name) return;
+    const stat = document.getElementById('libDetectStat');
+    stat.textContent = 'Запрос к ИИ…';
+    stat.className = 'small text-muted mt-1 d-block';
+    const csrf = document.querySelector('#libForm input[name=csrf_token]').value;
+    fetch('/api/lookup_component', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({name: name})
+    })
+    .then(r => r.json())
+    .then(data => _libApplyLookupResult(data, 'ИИ'))
+    .catch(() => { stat.textContent = 'Ошибка сети'; stat.className = 'small text-danger mt-1 d-block'; });
+}
+
+function suggestLibHousing(footprint) {
+    if (!footprint) return;
+    const hSel = document.getElementById('libHousing');
+    const sugSpan = document.getElementById('libHousingSug');
+    // Reuse same pattern list
+    let suggested = null;
+    for (const [re, pkg] of FOOTPRINT_PATTERNS) {
+        if (re.test(footprint)) { suggested = pkg; break; }
+    }
+    if (!suggested) return;
+    const sl = suggested.toLowerCase().replace(/[-_]/g, '');
+    for (let opt of hSel.options) {
+        const ol = opt.text.toLowerCase().replace(/[-_]/g, '');
+        if (ol === sl || ol.includes(sl) || sl.includes(ol)) {
+            hSel.value = opt.value;
+            if (sugSpan) sugSpan.textContent = '(из Footprint: ' + suggested + ')';
+            return;
+        }
+    }
+    if (sugSpan) sugSpan.textContent = '(Footprint: ' + suggested + ')';
+}
+
+function loadLibSubgroups() {
+    const gid = document.getElementById('libGroup').value;
+    const subSel = document.getElementById('libSubgroup');
+    const typeSel = document.getElementById('libType');
+    subSel.innerHTML = '<option value="0">Выберите…</option>';
+    typeSel.innerHTML = '<option value="0">Выберите…</option>';
+    if (gid && gid != '0') {
+        fetch('/get_subgroups/' + gid)
+            .then(r => r.json())
+            .then(data => data.forEach(s => subSel.add(new Option(s.name, s.id))));
+    }
+}
+function loadLibTypes() {
+    const sid = document.getElementById('libSubgroup').value;
+    const typeSel = document.getElementById('libType');
+    typeSel.innerHTML = '<option value="0">Выберите…</option>';
+    if (sid && sid != '0') {
+        fetch('/get_types/' + sid)
+            .then(r => r.json())
+            .then(data => data.forEach(t => typeSel.add(new Option(t.name, t.id))));
+    }
+}
+
+// Tooltips
+const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+[...tooltipTriggerList].map(el => new bootstrap.Tooltip(el));
+</script>
+
+{# ── Shared library modal ── #}
+<div class="modal fade" id="libModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-journal-plus me-2 text-info"></i>Добавить в библиотеку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="libForm">
+                {{ csrf_form.hidden_tag() }}
+                <div class="modal-body">
+
+                    {# BOM-контекст #}
+                    <div class="card bg-light border-0 mb-3" id="libContext"></div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Название *</label>
+                        <div class="d-flex gap-1 mb-1" id="libNameBtns"></div>
+                        <div class="input-group">
+                            <input type="text" name="name" class="form-control" id="libName" required>
+                            <button type="button" class="btn btn-outline-warning" onclick="_libMouserLookup()" title="Найти в Mouser Electronics">
+                                <i class="bi bi-search"></i> Mouser
+                            </button>
+                            <button type="button" class="btn btn-outline-success" onclick="_libLcscLookup()" title="Найти в LCSC">
+                                <i class="bi bi-search"></i> LCSC
+                            </button>
+                            <button type="button" class="btn btn-outline-info" onclick="_libAiLookup()" title="Определить тип через ИИ">
+                                <i class="bi bi-robot"></i>
+                            </button>
+                        </div>
+                        <span id="libDetectStat" class="small mt-1 d-block"></span>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label">Группа</label>
+                            <select class="form-select form-select-sm" id="libGroup" onchange="loadLibSubgroups()">
+                                <option value="0">Выберите…</option>
+                                {% for g in all_groups %}
+                                <option value="{{ g.id }}">{{ g.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Подгруппа</label>
+                            <select class="form-select form-select-sm" id="libSubgroup" onchange="loadLibTypes()">
+                                <option value="0">Выберите…</option>
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">Тип *</label>
+                            <select class="form-select form-select-sm" name="type_id" id="libType" required>
+                                <option value="0">Выберите…</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">
+                                Корпус
+                                <span id="libHousingSug" class="small text-info ms-1"></span>
+                            </label>
+                            <select class="form-select form-select-sm" name="housing_id" id="libHousing">
+                                <option value="0">— нет —</option>
+                                {% for h in all_housings %}
+                                <option value="{{ h.id }}">{{ h.housing_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Производитель</label>
+                            <input type="text" name="manufacturer" class="form-control form-control-sm" id="libManufacturer">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Описание</label>
+                            <input type="text" name="description" class="form-control form-control-sm" id="libDescription"
+                                   placeholder="Опционально — параметры, применение…">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-info text-white">
+                        <i class="bi bi-journal-plus me-1"></i>Добавить в библиотеку
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

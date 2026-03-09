@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -18,11 +18,20 @@
             --accent:        #4f6ef7;
             --shadow-sm:     0 1px 3px rgba(0,0,0,.07), 0 1px 2px rgba(0,0,0,.04);
             --shadow:        0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+            /* Override Bootstrap primary color globally */
+            --bs-primary:             #4f6ef7;
+            --bs-primary-rgb:         79, 110, 247;
+            --bs-primary-bg-subtle:   #eef1fe;
+            --bs-primary-border-subtle: #c7cffb;
+            --bs-primary-text-emphasis: #3d5ce4;
+            --bs-link-color:          #4f6ef7;
+            --bs-link-hover-color:    #3d5ce4;
         }
         body {
             background: var(--body-bg);
             color: var(--text-primary);
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+            padding-top: 15px
         }
         /* ── Navbar ── */
         .main-nav {
@@ -116,10 +125,27 @@
         /* ── Buttons ── */
         .btn { border-radius: .5rem; font-weight: 500; transition: transform .1s, box-shadow .15s; }
         .btn:active { transform: translateY(1px); }
-        .btn-primary { background: var(--accent); border-color: var(--accent); box-shadow: 0 2px 6px rgba(79,110,247,.28); }
-        .btn-primary:hover { background: #3d5ce4; border-color: #3d5ce4; box-shadow: 0 4px 12px rgba(79,110,247,.32); }
-        .btn-outline-primary { color: var(--accent); border-color: var(--accent); }
-        .btn-outline-primary:hover { background: var(--accent); border-color: var(--accent); }
+        .btn-primary { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; box-shadow: 0 2px 6px rgba(79,110,247,.28); }
+        .btn-primary:hover { background: #3d5ce4 !important; border-color: #3d5ce4 !important; box-shadow: 0 4px 12px rgba(79,110,247,.32); }
+        .btn-outline-primary { color: var(--accent) !important; border-color: var(--accent) !important; }
+        .btn-outline-primary:hover { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+        /* ── Primary color overrides ── */
+        .bg-primary { background-color: var(--accent) !important; }
+        .bg-primary.bg-opacity-10 { background-color: rgba(79,110,247,.1) !important; }
+        .bg-primary.bg-opacity-25 { background-color: rgba(79,110,247,.25) !important; }
+        .text-primary { color: var(--accent) !important; }
+        .border-primary { border-color: var(--accent) !important; }
+        .border-primary.border-opacity-25 { border-color: rgba(79,110,247,.25) !important; }
+        a { color: var(--accent); }
+        a:hover { color: #3d5ce4; }
+        /* ── Nav tabs ── */
+        .nav-tabs { border-bottom-color: var(--border); }
+        .nav-tabs .nav-link { color: var(--text-muted); border-radius: .4rem .4rem 0 0; border-color: transparent; }
+        .nav-tabs .nav-link:hover { color: var(--accent); border-color: var(--border) var(--border) transparent; background: #f8fafc; }
+        .nav-tabs .nav-link.active { color: var(--accent); border-color: var(--border) var(--border) #fff; background: #fff; font-weight: 600; }
+        /* ── Nav links outside navbar ── */
+        .nav-pills .nav-link { color: var(--text-muted); }
+        .nav-pills .nav-link.active { background: var(--accent); color: #fff; }
         /* ── Badges ── */
         .badge { font-weight: 500; border-radius: .35rem; padding: .32em .65em; }
         /* ── Pagination ── */
@@ -132,8 +158,7 @@
         .alert-danger  { background: #fef2f2; color: #b91c1c; }
         .alert-success { background: #f0fdf4; color: #15803d; }
         /* ── Page header ── */
-        .page-header h2 { font-weight: 700; font-size: 1.4rem; color: var(--text-primary); }
-        .page-header p  { color: var(--text-muted); font-size: .9rem; }
+        .d-flex > h2, .d-flex > div > h2 { font-weight: 700; font-size: 1.4rem; color: var(--text-primary); margin-bottom: 0; }
     </style>
 </head>
 <body>
@@ -151,7 +176,7 @@
                         {% if current_user.role == 'super_admin' or current_user.can_view_components %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('components.index') }}">
-                                    <i class="bi bi-box-seam me-1"></i>Компоненты
+                                    <i class="bi bi-box-seam me-1"></i>Склад
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -163,6 +188,20 @@
                                 <a class="nav-link" href="{{ url_for('orders.report') }}">
                                     <i class="bi bi-file-earmark-arrow-down me-1"></i>Отчёт
                                 </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="{{ url_for('tools.index') }}">
+                                    <i class="bi bi-calculator me-1"></i>Калькуляторы
+                                </a>
+                            </li>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="izdDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-journal-bookmark me-1"></i>Библиотека
+                                </a>
+                                <ul class="dropdown-menu" aria-labelledby="izdDropdown">
+                                    <li><a class="dropdown-item" href="{{ url_for('bom.index') }}"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Изделия</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('library.index') }}"><i class="bi bi-cpu me-2"></i>Компоненты</a></li>
+                                </ul>
                             </li>
                         {% endif %}
                         {% if current_user.role == 'super_admin' or current_user.can_view_groups or current_user.can_view_subgroups or current_user.can_view_types or current_user.can_view_housings %}
@@ -183,18 +222,25 @@
                                     {% if current_user.role == 'super_admin' or current_user.can_view_housings %}
                                         <li><a class="dropdown-item" href="{{ url_for('catalog.housings') }}"><i class="bi bi-box me-2"></i>Корпуса</a></li>
                                     {% endif %}
-                                    {% if current_user.role == 'super_admin' %}
+                                    <!-- {% if current_user.role == 'super_admin' %}
                                         <li><hr class="dropdown-divider" style="border-color:rgba(255,255,255,.1)"></li>
-                                        <li><a class="dropdown-item" href="{{ url_for('users.index') }}"><i class="bi bi-people me-2"></i>Пользователи</a></li>
-                                        <li><a class="dropdown-item" href="{{ url_for('components.archive') }}"><i class="bi bi-archive me-2"></i>Архив</a></li>
-                                    {% endif %}
+                                    {% endif %} -->
                                 </ul>
                             </li>
                         {% endif %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('auth.logout') }}">
-                                <i class="bi bi-box-arrow-right me-1"></i>Выйти
+                        {# ── User dropdown (Пользователи + Архив + Выйти) ── #}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle me-1"></i>{{ current_user.username }}
                             </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                {% if current_user.role == 'super_admin' %}
+                                    <li><a class="dropdown-item" href="{{ url_for('users.index') }}"><i class="bi bi-people me-2"></i>Пользователи</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('components.archive') }}"><i class="bi bi-archive me-2"></i>Архив</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                {% endif %}
+                                <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Выйти</a></li>
+                            </ul>
                         </li>
                     {% else %}
                         <li class="nav-item">

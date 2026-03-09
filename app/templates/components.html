@@ -1,268 +1,468 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-box-seam me-2 text-primary"></i>Компоненты</h2>
-        {% if current_user.role == 'super_admin' or current_user.can_create_components %}
-            <a href="{{ url_for('components.add') }}" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Добавить компонент
-            </a>
-        {% endif %}
-    </div>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
-                    <i class="bi bi-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }}"></i>
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    
-    <!-- Search and Filter Form -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="bi bi-funnel me-2 text-primary"></i>Фильтры и поиск</h5>
-        </div>
-        <div class="card-body">
-            <form method="GET" id="filterForm">
-                {{ form.hidden_tag()
-
-
-                }}
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label">{{ form.search.label }}</label>
-                        {{ form.search(class="form-control", value=search) }}
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">{{ form.group_id.label }}</label>
-                        {{ form.group_id(class="form-select", id="group_id") }}
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">{{ form.subgroup_id.label }}</label>
-                        {{ form.subgroup_id(class="form-select", id="subgroup_id") }}
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">{{ form.type_id.label }}</label>
-                        {{ form.type_id(class="form-select", id="type_id") }}
-                    </div>
-                </div>
-                <div class="mt-3">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-funnel me-1"></i>Применить фильтры
-                    </button>
-                    <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary ms-2">
-                        <i class="bi bi-x-circle me-1"></i>Сбросить
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Component Table -->
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Список компонентов</h5>
-            <span class="badge bg-primary rounded-pill">{{ components.total }} всего</span>
-        </div>
-        <div class="card-body table-responsive p-0">
-            <table class="table table-hover table-striped mb-0">
-                <thead>
-                    <tr>
-                        <th scope="col">ID</th>
-                        <th scope="col">Название</th>
-                        <th scope="col">Группа</th>
-                        <th scope="col">Подгруппа</th>
-                        <th scope="col">Тип</th>
-                        <th scope="col">Корпус</th>
-                        <th scope="col">Количество</th>
-                        <th scope="col">Номинал</th>
-                        <th scope="col">Единица</th>
-                        {% if current_user.role == 'super_admin' or current_user.can_view_components %}
-                            <th scope="col" class="text-center">Действия</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for component in components.items %}
-                        <tr>
-                            <td class="text-muted fw-semibold">{{ component.id }}</td>
-                            <td>
-                                <div class="fw-semibold">{{ component.name }}</div>
-                            </td>
-                            <td>
-                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{{ component.comp_type.subgroup.group.name if component.comp_type and component.comp_type.subgroup and component.comp_type.subgroup.group else '-' }}</span>
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">{{ component.comp_type.subgroup.name if component.comp_type and component.comp_type.subgroup else '-' }}</span>
-                            </td>
-                            <td>
-                                <small class="text-muted">{{ component.comp_type.name if component.comp_type else '-' }}</small>
-                            </td>
-                            <td class="text-muted">
-                                {{ component.housing.housing_name if component.housing else '-' }}
-                            </td>
-                            <td>
-                                <span class="badge {{ 'bg-warning text-dark' if component.quantity < 10 else 'bg-success' }}">
-                                    {{ component.quantity }}
-                                </span>
-                            </td>
-                            <td class="text-muted">
-                                {% if component.nominal_value %}
-                                    {{ component.nominal_value }}
-                                {% else %}
-                                    <span class="text-muted">-</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-muted">{{ component.unit or '-' }}</td>
-                            {% if current_user.role == 'super_admin' or current_user.can_view_components %}
-                                <td class="text-center">
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ url_for('components.history', id=component.id) }}" 
-                                           class="btn btn-outline-info" 
-                                           data-bs-toggle="tooltip" 
-                                           title="История">
-                                            <i class="bi bi-clock-history"></i>История
-                                        </a>
-                                        {% if current_user.role == 'super_admin' or (current_user.can_edit_components and (current_user.role != 'admin' or component.created_by_id == current_user.id)) %}
-                                            <a href="{{ url_for('components.edit', id=component.id) }}" 
-                                               class="btn btn-outline-warning" 
-                                               data-bs-toggle="tooltip" 
-                                               title="Редактировать">
-                                                <i class="bi bi-pencil"></i>Редактировать
-                                            </a>
-                                        {% endif %}
-                                        {% if current_user.role == 'super_admin' or (current_user.can_delete_components and (current_user.role != 'admin' or component.created_by_id == current_user.id)) %}
-                                            <a href="{{ url_for('components.delete', id=component.id) }}" 
-                                               class="btn btn-outline-danger" 
-                                               onclick="return confirm('Вы уверены, что хотите удалить компонент?')"
-                                               data-bs-toggle="tooltip"
-                                               title="Удалить">
-                                                <i class="bi bi-trash"></i>Удалить
-                                            </a>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                            {% endif %}
-                        </tr>
-                    {% else %}
-                        <tr>
-                            <td colspan="{% if current_user.role == 'super_admin' or current_user.can_view_components %}10{% else %}9{% endif %}" 
-                                class="text-center text-muted py-4">
-                                <i class="bi bi-inbox display-4 d-block mb-2"></i>
-                                Компоненты не найдены
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    
-    <!-- Pagination -->
-    {% if components.pages > 1 %}
-    <nav class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if components.has_prev %}
-                <li class="page-item">
-                    <a class="page-link" 
-                       href="{{ url_for('components.index', page=components.prev_num, search=search, group_id=group_id, subgroup_id=subgroup_id, type_id=type_id) }}">
-                        <i class="bi bi-chevron-left"></i> Предыдущая
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">Предыдущая</span>
-                </li>
-            {% endif %}
-            
-            {% for page_num in components.iter_pages(left_edge=2, left_current=2, right_current=2, right_edge=2) %}
-                {% if page_num %}
-                    {% if page_num != components.page %}
-                        <li class="page-item">
-                            <a class="page-link" 
-                               href="{{ url_for('components.index', page=page_num, search=search, group_id=group_id, subgroup_id=subgroup_id, type_id=type_id) }}">
-                                {{ page_num }}
-                            </a>
-                        </li>
-                    {% else %}
-                        <li class="page-item active">
-                            <span class="page-link">{{ page_num }}</span>
-                        </li>
-                    {% endif %}
-                {% else %}
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                {% endif %}
-            {% endfor %}
-            
-            {% if components.has_next %}
-                <li class="page-item">
-                    <a class="page-link" 
-                       href="{{ url_for('components.index', page=components.next_num, search=search, group_id=group_id, subgroup_id=subgroup_id, type_id=type_id) }}">
-                        Следующая <i class="bi bi-chevron-right"></i>
-                    </a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">Следующая</span>
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-box-seam me-2 text-primary"></i>Склад</h2>
+    {% if current_user.role == 'super_admin' or current_user.can_create_components %}
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#libSearchModal">
+        <i class="bi bi-plus-circle me-1"></i>Добавить компонент
+    </button>
     {% endif %}
 </div>
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for cat, msg in messages %}
+        <div class="alert alert-{{ 'danger' if cat == 'error' else cat }} alert-dismissible fade show">
+            {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}{% endif %}
+{% endwith %}
+
+<div class="row g-3">
+
+    {# ── Left sidebar: tree ── #}
+    <div class="col-md-3 col-lg-2">
+        <div class="card">
+            <div class="card-header py-2 small fw-semibold text-uppercase text-muted">
+                <i class="bi bi-diagram-3 me-1"></i>Категории
+            </div>
+            <div class="card-body p-0">
+                <form method="GET" class="p-2 border-bottom">
+                    <input type="hidden" name="group_id"    value="{{ group_id }}">
+                    <input type="hidden" name="subgroup_id" value="{{ subgroup_id }}">
+                    <input type="hidden" name="type_id"     value="{{ type_id }}">
+                    <div class="input-group input-group-sm">
+                        <input type="text" name="q" id="stockQuery" value="{{ q }}" class="form-control" placeholder="Поиск…" autocomplete="off">
+                        <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+                    </div>
+                </form>
+
+                <ul class="list-unstyled mb-0 small">
+                    <li>
+                        <a href="{{ url_for('components.index', q=q) }}"
+                           class="d-flex justify-content-between align-items-center px-3 py-2 text-decoration-none
+                                  {{ 'bg-primary text-white' if not group_id and not subgroup_id and not type_id else 'text-body' }}">
+                            <span><i class="bi bi-grid me-1"></i>Все</span>
+                            <span class="badge {{ 'bg-light text-dark' if not group_id and not subgroup_id and not type_id else 'bg-secondary' }} rounded-pill">{{ group_counts.values() | sum }}</span>
+                        </a>
+                    </li>
+
+                    {% for g in groups %}
+                    {% set g_count = group_counts.get(g.id, 0) %}
+                    {% if g_count > 0 %}
+                    <li>
+                        <a href="{{ url_for('components.index', q=q, group_id=g.id) }}"
+                           class="d-flex justify-content-between align-items-center px-3 py-2 text-decoration-none fw-semibold
+                                  {{ 'bg-primary text-white' if group_id == g.id and not subgroup_id and not type_id else 'text-body' }}"
+                           data-bs-toggle="collapse" data-bs-target="#grp{{ g.id }}"
+                           aria-expanded="{{ 'true' if group_id == g.id or (subgroup_id and g.subgroups | selectattr('id', 'eq', subgroup_id) | list) else 'false' }}">
+                            <span><i class="bi bi-folder me-1"></i>{{ g.name }}</span>
+                            <span class="badge {{ 'bg-light text-dark' if group_id == g.id and not subgroup_id and not type_id else 'bg-primary bg-opacity-25 text-primary' }} rounded-pill">{{ g_count }}</span>
+                        </a>
+                        <div class="collapse {{ 'show' if group_id == g.id else '' }}" id="grp{{ g.id }}">
+                            <ul class="list-unstyled mb-0 ps-2 border-start ms-3">
+                                {% for s in g.subgroups | sort(attribute='name') %}
+                                {% set s_count = subgroup_counts.get(s.id, 0) %}
+                                {% if s_count > 0 %}
+                                <li>
+                                    <a href="{{ url_for('components.index', q=q, group_id=g.id, subgroup_id=s.id) }}"
+                                       class="d-flex justify-content-between align-items-center px-2 py-1 text-decoration-none
+                                              {{ 'text-primary fw-semibold' if subgroup_id == s.id and not type_id else 'text-muted' }}"
+                                       data-bs-toggle="collapse" data-bs-target="#sub{{ s.id }}"
+                                       aria-expanded="{{ 'true' if subgroup_id == s.id else 'false' }}">
+                                        <span><i class="bi bi-folder2 me-1"></i>{{ s.name }}</span>
+                                        <span class="badge bg-secondary bg-opacity-25 text-secondary rounded-pill">{{ s_count }}</span>
+                                    </a>
+                                    <div class="collapse {{ 'show' if subgroup_id == s.id else '' }}" id="sub{{ s.id }}">
+                                        <ul class="list-unstyled mb-0 ps-2 border-start ms-2">
+                                            {% for t in s.types | sort(attribute='name') %}
+                                            {% set t_count = type_counts.get(t.id, 0) %}
+                                            {% if t_count > 0 %}
+                                            <li>
+                                                <a href="{{ url_for('components.index', q=q, group_id=g.id, subgroup_id=s.id, type_id=t.id) }}"
+                                                   class="d-flex justify-content-between align-items-center px-2 py-1 text-decoration-none
+                                                          {{ 'text-primary fw-semibold' if type_id == t.id else 'text-muted' }}">
+                                                    <span class="small"><i class="bi bi-tag me-1"></i>{{ t.name }}</span>
+                                                    <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill" style="font-size:.65rem">{{ t_count }}</span>
+                                                </a>
+                                            </li>
+                                            {% endif %}
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </li>
+                                {% endif %}
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    {# ── Right: content ── #}
+    <div class="col-md-9 col-lg-10">
+
+        {# Live search overlay #}
+        <div id="stockLiveResults" style="display:none"></div>
+
+        {# Main content #}
+        <div id="stockMainContent">
+
+            {# Active filter badges #}
+            {% if group_id or subgroup_id or type_id or q %}
+            <div class="d-flex flex-wrap gap-2 mb-3 align-items-center small">
+                <span class="text-muted">Фильтр:</span>
+                {% if q %}<span class="badge bg-secondary">«{{ q }}» <a href="{{ url_for('components.index', group_id=group_id, subgroup_id=subgroup_id, type_id=type_id) }}" class="text-white text-decoration-none ms-1">×</a></span>{% endif %}
+                {% for g in groups %}{% if g.id == group_id %}<span class="badge bg-primary">{{ g.name }} <a href="{{ url_for('components.index', q=q) }}" class="text-white text-decoration-none ms-1">×</a></span>{% endif %}{% endfor %}
+                {% for g in groups %}{% for s in g.subgroups %}{% if s.id == subgroup_id %}<span class="badge bg-info text-dark">{{ s.name }} <a href="{{ url_for('components.index', q=q, group_id=group_id) }}" class="text-dark text-decoration-none ms-1">×</a></span>{% endif %}{% endfor %}{% endfor %}
+                {% for t in types %}{% if t.id == type_id %}<span class="badge bg-success">{{ t.name }} <a href="{{ url_for('components.index', q=q, group_id=group_id, subgroup_id=subgroup_id) }}" class="text-white text-decoration-none ms-1">×</a></span>{% endif %}{% endfor %}
+                <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary btn-sm ms-auto"><i class="bi bi-x-circle me-1"></i>Сбросить всё</a>
+            </div>
+            {% endif %}
+
+            {% if items %}
+
+                {% if not q and not type_id %}
+                {# ── Grouped view ── #}
+                {% for g, subdict in tree.items() %}
+                <div class="mb-4">
+                    <h5 class="fw-semibold mb-2 border-bottom pb-1">
+                        <i class="bi bi-folder-fill text-primary me-2"></i>{{ g.name }}
+                    </h5>
+                    {% for s, typedict in subdict.items() %}
+                    <div class="mb-3 ms-3">
+                        <h6 class="text-muted fw-semibold mb-2">
+                            <i class="bi bi-folder2-open me-1"></i>{{ s.name }}
+                        </h6>
+                        {% for t, titems in typedict.items() %}
+                        <div class="card mb-2 ms-3">
+                            <div class="card-header py-2 d-flex justify-content-between align-items-center"
+                                 style="cursor:pointer" data-bs-toggle="collapse"
+                                 data-bs-target="#type{{ t.id }}_blk" aria-expanded="true">
+                                <span class="small fw-semibold">
+                                    <i class="bi bi-tag me-1 text-success"></i>{{ t.name }}
+                                </span>
+                                <span class="badge bg-success rounded-pill">{{ titems | length }}</span>
+                            </div>
+                            <div class="collapse show" id="type{{ t.id }}_blk">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-sm mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Название</th>
+                                                <th>Корпус</th>
+                                                <th>Кол-во</th>
+                                                <th>Номинал</th>
+                                                <th>Производитель</th>
+                                                <th>Место</th>
+                                                <th class="text-center" style="width:120px">Действия</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in titems %}
+                                            <tr>
+                                                <td class="fw-semibold">{{ item.name }}</td>
+                                                <td class="small text-muted">{{ item.housing.housing_name if item.housing else '—' }}</td>
+                                                <td>
+                                                    <span class="badge {{ 'bg-danger' if item.quantity == 0 else ('bg-warning text-dark' if item.quantity < 10 else 'bg-success') }}">
+                                                        {{ item.quantity }}
+                                                    </span>
+                                                </td>
+                                                <td class="small">{% if item.nominal_value %}{{ item.nominal_value | fnum }} {{ item.unit or '' }}{% else %}—{% endif %}</td>
+                                                <td class="small text-muted">{{ item.manufacturer or '—' }}</td>
+                                                <td class="small text-muted">{{ item.location or '—' }}</td>
+                                                <td class="text-center">
+                                                    <div class="btn-group btn-group-sm">
+                                                        <a href="{{ url_for('components.view', id=item.id) }}" class="btn btn-outline-secondary" title="Просмотр"><i class="bi bi-eye"></i></a>
+                                                        <a href="{{ url_for('components.history', id=item.id) }}" class="btn btn-outline-secondary" title="История"><i class="bi bi-clock-history"></i></a>
+                                                        {% if current_user.role == 'super_admin' or (current_user.can_edit_components and (current_user.role != 'admin' or item.created_by_id == current_user.id)) %}
+                                                        <a href="{{ url_for('components.edit', id=item.id) }}" class="btn btn-outline-primary" title="Редактировать"><i class="bi bi-pencil"></i></a>
+                                                        {% endif %}
+                                                        {% if current_user.role == 'super_admin' or (current_user.can_delete_components and (current_user.role != 'admin' or item.created_by_id == current_user.id)) %}
+                                                        <a href="{{ url_for('components.delete', id=item.id) }}" class="btn btn-outline-danger" title="В архив" onclick="return confirm('Переместить в архив?')"><i class="bi bi-trash"></i></a>
+                                                        {% endif %}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                {% else %}
+                {# ── Flat view (search / type filter) ── #}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-table me-2"></i>Результаты</span>
+                        <span class="badge bg-primary rounded-pill">{{ items | length }}</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Название</th>
+                                    <th>Группа / Подгруппа / Тип</th>
+                                    <th>Корпус</th>
+                                    <th>Кол-во</th>
+                                    <th>Номинал</th>
+                                    <th>Производитель</th>
+                                    <th>Место</th>
+                                    <th class="text-center">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in items %}
+                                <tr>
+                                    <td class="fw-semibold">{{ item.name }}</td>
+                                    <td class="small text-muted">
+                                        {% if item.comp_type %}
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">{{ item.comp_type.subgroup.group.name }}</span>
+                                            / {{ item.comp_type.subgroup.name }}
+                                            / <span class="text-success">{{ item.comp_type.name }}</span>
+                                        {% else %}—{% endif %}
+                                    </td>
+                                    <td class="small text-muted">{{ item.housing.housing_name if item.housing else '—' }}</td>
+                                    <td>
+                                        <span class="badge {{ 'bg-danger' if item.quantity == 0 else ('bg-warning text-dark' if item.quantity < 10 else 'bg-success') }}">
+                                            {{ item.quantity }}
+                                        </span>
+                                    </td>
+                                    <td class="small">{% if item.nominal_value %}{{ item.nominal_value | fnum }} {{ item.unit or '' }}{% else %}—{% endif %}</td>
+                                    <td class="small text-muted">{{ item.manufacturer or '—' }}</td>
+                                    <td class="small text-muted">{{ item.location or '—' }}</td>
+                                    <td class="text-center" style="white-space:nowrap">
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('components.view', id=item.id) }}" class="btn btn-outline-secondary" title="Просмотр"><i class="bi bi-eye"></i></a>
+                                            <a href="{{ url_for('components.history', id=item.id) }}" class="btn btn-outline-secondary" title="История"><i class="bi bi-clock-history"></i></a>
+                                            {% if current_user.role == 'super_admin' or (current_user.can_edit_components and (current_user.role != 'admin' or item.created_by_id == current_user.id)) %}
+                                            <a href="{{ url_for('components.edit', id=item.id) }}" class="btn btn-outline-primary" title="Редактировать"><i class="bi bi-pencil"></i></a>
+                                            {% endif %}
+                                            {% if current_user.role == 'super_admin' or (current_user.can_delete_components and (current_user.role != 'admin' or item.created_by_id == current_user.id)) %}
+                                            <a href="{{ url_for('components.delete', id=item.id) }}" class="btn btn-outline-danger" title="В архив" onclick="return confirm('Переместить в архив?')"><i class="bi bi-trash"></i></a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+            {% else %}
+            <div class="card">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="bi bi-inbox display-4 d-block mb-3"></i>
+                    {% if q or group_id or subgroup_id or type_id %}
+                        Ничего не найдено. <a href="{{ url_for('components.index') }}">Сбросить фильтры</a>
+                    {% else %}
+                        Склад пуст.
+                        {% if current_user.role == 'super_admin' or current_user.can_create_components %}
+                        <button type="button" class="btn btn-link p-0" data-bs-toggle="modal" data-bs-target="#libSearchModal">Добавьте первый компонент</button>.
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>{# /stockMainContent #}
+    </div>
+</div>
+
 <script>
-document.getElementById('group_id').addEventListener('change', function() {
-    const groupId = this.value;
-    const subgroupSelect = document.getElementById('subgroup_id');
-    const typeSelect = document.getElementById('type_id');
-    
-    subgroupSelect.innerHTML = '<option value="0">Все подгруппы</option>';
-    typeSelect.innerHTML = '<option value="0">Все типы</option>';
-    
-    if (groupId) {
-        fetch(`/get_subgroups/${groupId}`)
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(subgroup => {
-                    const option = document.createElement('option');
-                    option.value = subgroup.id;
-                    option.textContent = subgroup.name;
-                    subgroupSelect.appendChild(option);
-                });
-            });
-    }
-});
+(function () {
+    var input = document.getElementById('stockQuery');
+    var live  = document.getElementById('stockLiveResults');
+    var main  = document.getElementById('stockMainContent');
+    if (!input || !live || !main) return;
 
-document.getElementById('subgroup_id').addEventListener('change', function() {
-    const subgroupId = this.value;
-    const typeSelect = document.getElementById('type_id');
-    
-    typeSelect.innerHTML = '<option value="0">Все типы</option>';
-    
-    if (subgroupId) {
-        fetch(`/get_types/${subgroupId}`)
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(type => {
-                    const option = document.createElement('option');
-                    option.value = type.id;
-                    option.textContent = type.name;
-                    typeSelect.appendChild(option);
-                });
-            });
-    }
-});
+    var canEdit   = {{ (current_user.role == 'super_admin' or current_user.can_edit_components)   | tojson }};
+    var canDelete = {{ (current_user.role == 'super_admin' or current_user.can_delete_components) | tojson }};
+    var timer;
 
-// Активация всплывающих подсказок
-const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+    function esc(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function qtyBadge(n) {
+        var cls = n === 0 ? 'bg-danger' : (n < 10 ? 'bg-warning text-dark' : 'bg-success');
+        return '<span class="badge ' + cls + '">' + n + '</span>';
+    }
+    function showLive(html) { live.innerHTML = html; live.style.display = ''; main.style.display = 'none'; }
+    function hideLive()     { live.style.display = 'none'; main.style.display = ''; live.innerHTML = ''; }
+
+    function renderResults(items, q) {
+        if (!items.length) {
+            showLive('<div class="card"><div class="card-body text-center text-muted py-5"><i class="bi bi-search display-4 d-block mb-3"></i>Ничего не найдено по запросу «' + esc(q) + '».<br><button class="btn btn-link" onclick="stockClear()">Сбросить</button></div></div>');
+            return;
+        }
+        var rows = items.map(function(it) {
+            var actions = '<div class="btn-group btn-group-sm">' +
+                '<a href="/components/view/' + it.id + '" class="btn btn-outline-secondary" title="Просмотр"><i class="bi bi-eye"></i></a>' +
+                '<a href="/components/history/' + it.id + '" class="btn btn-outline-secondary" title="История"><i class="bi bi-clock-history"></i></a>';
+            if (canEdit)   actions += '<a href="/components/edit/' + it.id + '" class="btn btn-outline-primary" title="Редактировать"><i class="bi bi-pencil"></i></a>';
+            if (canDelete) actions += '<a href="/components/delete/' + it.id + '" class="btn btn-outline-danger" title="В архив" onclick="return confirm(\'Переместить в архив?\')"><i class="bi bi-trash"></i></a>';
+            actions += '</div>';
+            return '<tr>' +
+                '<td class="fw-semibold">' + esc(it.name) + '</td>' +
+                '<td class="small text-muted"><span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">' + esc(it.group) + '</span> / ' + esc(it.subgroup) + ' / <span class="text-success">' + esc(it.type) + '</span></td>' +
+                '<td class="small text-muted">' + esc(it.housing || '—') + '</td>' +
+                '<td>' + qtyBadge(it.quantity) + '</td>' +
+                '<td class="small">' + esc(it.nominal || '—') + '</td>' +
+                '<td class="small text-muted">' + esc(it.manufacturer || '—') + '</td>' +
+                '<td class="text-center" style="white-space:nowrap">' + actions + '</td>' +
+                '</tr>';
+        }).join('');
+        showLive(
+            '<div class="d-flex flex-wrap gap-2 mb-3 align-items-center small">' +
+            '<span class="text-muted">Найдено по запросу «' + esc(q) + '»:</span>' +
+            '<span class="badge bg-primary rounded-pill">' + items.length + '</span>' +
+            '<button class="btn btn-outline-secondary btn-sm ms-auto" onclick="stockClear()"><i class="bi bi-x-circle me-1"></i>Сбросить</button>' +
+            '</div>' +
+            '<div class="card"><div class="table-responsive">' +
+            '<table class="table table-hover table-sm mb-0"><thead><tr>' +
+            '<th>Название</th><th>Категория</th><th>Корпус</th><th>Кол-во</th><th>Номинал</th><th>Производитель</th><th class="text-center">Действия</th>' +
+            '</tr></thead><tbody>' + rows + '</tbody></table></div></div>'
+        );
+    }
+
+    window.stockClear = function() { input.value = ''; hideLive(); };
+
+    function doSearch(q) {
+        live.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Поиск…</div>';
+        live.style.display = ''; main.style.display = 'none';
+        fetch('/api/components/search?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(data) { renderResults(data, q); })
+            .catch(function(err) { showLive('<div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>Ошибка поиска: ' + esc(String(err)) + '</div>'); });
+    }
+
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        var q = this.value.trim();
+        if (!q) { hideLive(); return; }
+        timer = setTimeout(function() { doSearch(q); }, 250);
+    });
+})();
 </script>
+
+{# ── Модальное окно: поиск по библиотеке перед добавлением ── #}
+{% if current_user.role == 'super_admin' or current_user.can_create_components %}
+<div class="modal fade" id="libSearchModal" tabindex="-1" aria-labelledby="libSearchModalLabel">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="libSearchModalLabel"><i class="bi bi-journal-bookmark me-2 text-primary"></i>Поиск в библиотеке</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <div class="input-group">
+            <input type="text" id="libQ" class="form-control" placeholder="Введите название компонента…" autocomplete="off">
+            <button class="btn btn-outline-primary" onclick="libDoSearch()"><i class="bi bi-search"></i></button>
+          </div>
+          <div class="form-text">Начните вводить для поиска по библиотеке. Если компонента нет — создайте его в библиотеке.</div>
+        </div>
+        <div id="libResults"></div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <a href="{{ url_for('library.create', next='stock') }}" class="btn btn-outline-success">
+          <i class="bi bi-journal-plus me-1"></i>Нет в библиотеке — создать новый
+        </a>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Скрытая форма для add_to_stock #}
+<form id="libAddForm" method="POST" style="display:none">
+  <input type="hidden" name="csrf_token" value="{{ form.csrf_token._value() }}" id="libCsrfToken">
+</form>
+
+<script>
+async function libDoSearch() {
+  const q = document.getElementById('libQ').value.trim();
+  const el = document.getElementById('libResults');
+  if (!q) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="text-center text-muted py-3"><div class="spinner-border spinner-border-sm me-2"></div>Поиск…</div>';
+  try {
+    const resp = await fetch(`/api/library/search?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if (!data.length) {
+      el.innerHTML = `<div class="alert alert-warning"><i class="bi bi-exclamation-circle me-2"></i>Ничего не найдено в библиотеке по запросу «${escHtml(q)}».<br>Можно <a href="{{ url_for('library.create', next='stock') }}">создать новый компонент в библиотеке</a>.</div>`;
+      return;
+    }
+    let rows = data.map(it => {
+      const safeName = escHtml(it.name);
+      return `<tr>
+        <td class="fw-semibold">${safeName}</td>
+        <td class="small text-muted">
+          <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">${escHtml(it.group)}</span>
+          / ${escHtml(it.subgroup)} / <span class="text-success">${escHtml(it.type)}</span>
+        </td>
+        <td class="small text-muted">${escHtml(it.housing)}</td>
+        <td class="small">${escHtml(it.nominal)}</td>
+        <td class="small text-muted">${escHtml(it.manufacturer)}</td>
+        <td class="text-center" style="white-space:nowrap">
+          <button class="btn btn-success btn-sm" data-id="${it.id}" data-name="${safeName}" onclick="libAddToStock(this)">
+            <i class="bi bi-plus-square me-1"></i>На склад
+          </button>
+          <a href="/library/${it.id}/edit" class="btn btn-outline-primary btn-sm" target="_blank">
+            <i class="bi bi-pencil"></i>
+          </a>
+        </td>
+      </tr>`;
+    });
+    el.innerHTML = `
+      <p class="text-muted small mb-2">Найдено: ${data.length}</p>
+      <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+          <thead><tr><th>Название</th><th>Категория</th><th>Корпус</th><th>Номинал</th><th>Производитель</th><th></th></tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = '<div class="alert alert-danger">Ошибка поиска</div>';
+  }
+}
+
+async function libAddToStock(btn) {
+  const id = btn.dataset.id;
+  const name = btn.dataset.name;
+  if (!confirm(`Добавить «${name}» на склад?`)) return;
+  const form = document.getElementById('libAddForm');
+  form.action = `/library/${id}/add_to_stock`;
+  form.submit();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('libQ').addEventListener('input', function () {
+  clearTimeout(window._libTimer);
+  var q = this.value.trim();
+  if (!q) { document.getElementById('libResults').innerHTML = ''; return; }
+  window._libTimer = setTimeout(libDoSearch, 250);
+});
+document.getElementById('libQ').addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); libDoSearch(); } });
+document.getElementById('libSearchModal').addEventListener('shown.bs.modal', () => {
+  document.getElementById('libQ').focus();
+  document.getElementById('libResults').innerHTML = '';
+  document.getElementById('libQ').value = '';
+});
+</script>
+{% endif %}
 {% endblock %}

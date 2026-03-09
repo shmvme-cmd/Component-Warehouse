@@ -1,4 +1,5 @@
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileAllowed, FileRequired
 from wtforms import StringField, PasswordField, SelectField, IntegerField, FloatField, DateTimeField, SubmitField, BooleanField
 from wtforms.validators import DataRequired, Optional, NumberRange
 from datetime import datetime
@@ -47,15 +48,15 @@ class ComponentForm(FlaskForm):
     name = StringField('Название', validators=[DataRequired()])
     group_id = SelectField('Группа', choices=[(0, 'Выберите группу')], coerce=int)
     subgroup_id = SelectField('Подгруппа', choices=[(0, 'Выберите подгруппу')], coerce=int)
-    type_id = SelectField('Тип', choices=[(0, 'Выберите тип')], coerce=int, validators=[DataRequired()])
-    housing_id = SelectField('Корпус', coerce=int, validators=[DataRequired()])
+    type_id = SelectField('Тип', choices=[(0, 'Выберите тип')], coerce=int, validators=[Optional()])
+    housing_id = SelectField('Корпус', coerce=int, validators=[Optional()])
     manufacturer = StringField('Производитель', validators=[Optional()])
     quantity = IntegerField('Количество', validators=[DataRequired(), NumberRange(min=0)])
     price = FloatField('Цена', validators=[Optional()])
     arrival_date = DateTimeField('Дата поступления', format='%Y-%m-%d', default=datetime.now, validators=[Optional()])
     location = StringField('Местоположение', validators=[Optional()])
     nominal_value = FloatField('Номинал', validators=[Optional()])
-    unit = SelectField('Единица измерения', choices=[('', 'Выберите единицу')], validators=[DataRequired()])
+    unit = SelectField('Единица измерения', choices=[('', 'Выберите единицу')], validators=[Optional()])
     additional_parameters = StringField('Дополнительные параметры', validators=[Optional()])
     submit = SubmitField('Сохранить')
 
@@ -87,6 +88,39 @@ class OrderForm(FlaskForm):
     component_id = SelectField('Компонент', coerce=int, validators=[DataRequired()])
     quantity = IntegerField('Количество', validators=[DataRequired(), NumberRange(min=1)])
     submit = SubmitField('Создать заказ')
+
+
+class ProductForm(FlaskForm):
+    name = StringField('Название изделия', validators=[DataRequired()])
+    description = StringField('Описание', validators=[Optional()])
+    submit = SubmitField('Создать')
+
+
+class BomImportForm(FlaskForm):
+    bom_file = FileField('BOM-файл (CSV)', validators=[
+        FileRequired(),
+        FileAllowed(['csv'], 'Только CSV-файлы'),
+    ])
+    product_name = StringField('Название изделия (пусто = из имени файла)', validators=[Optional()])
+    submit = SubmitField('Импортировать')
+
+
+class ProduceForm(FlaskForm):
+    quantity = IntegerField('Количество изделий', validators=[DataRequired(), NumberRange(min=1)])
+    submit = SubmitField('Списать компоненты')
+
+
+class LibraryItemForm(FlaskForm):
+    name = StringField('Название / артикул', validators=[DataRequired()])
+    group_id = SelectField('Группа', choices=[(0, 'Выберите группу')], coerce=int)
+    subgroup_id = SelectField('Подгруппа', choices=[(0, 'Выберите подгруппу')], coerce=int)
+    type_id = SelectField('Тип', choices=[(0, 'Выберите тип')], coerce=int, validators=[Optional()])
+    housing_id = SelectField('Корпус', coerce=int, validators=[Optional()])
+    manufacturer = StringField('Производитель', validators=[Optional()])
+    nominal_value = FloatField('Номинал', validators=[Optional()])
+    unit = StringField('Единица', validators=[Optional()])
+    description = StringField('Описание', validators=[Optional()])
+    submit = SubmitField('Сохранить')
 
 
 class SearchForm(FlaskForm):

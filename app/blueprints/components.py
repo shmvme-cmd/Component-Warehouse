@@ -1,8 +1,10 @@
 import json
+from collections import defaultdict
 from datetime import datetime
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, current_app
 from flask_login import login_required, current_user
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
@@ -12,43 +14,98 @@ from app.forms import ComponentForm, SearchForm
 components_bp = Blueprint('components', __name__)
 
 
-@components_bp.route('/components', methods=['GET', 'POST'])
+@components_bp.route('/components', methods=['GET'])
 @login_required
 def index():
     if not (current_user.role == 'super_admin' or current_user.can_view_components):
         flash('У вас нет прав для просмотра компонентов', 'error')
         return redirect(url_for('main.index'))
 
-    form = SearchForm()
-    form.group_id.choices = [(0, 'Все группы')] + [(g.id, g.name) for g in Group.query.all()]
-    form.subgroup_id.choices = [(0, 'Все подгруппы')] + [(s.id, s.name) for s in Subgroup.query.all()]
-    form.type_id.choices = [(0, 'Все типы')] + [(t.id, t.name) for t in ComponentType.query.all()]
+    q           = request.args.get('q', '').strip()
+    group_id    = request.args.get('group_id',    type=int, default=0)
+    subgroup_id = request.args.get('subgroup_id', type=int, default=0)
+    type_id     = request.args.get('type_id',     type=int, default=0)
 
-    search = form.search.data if form.validate_on_submit() else request.args.get('search', '')
-    group_id = form.group_id.data if form.validate_on_submit() else request.args.get('group_id', type=int, default=0)
-    subgroup_id = form.subgroup_id.data if form.validate_on_submit() else request.args.get('subgroup_id', type=int, default=0)
-    type_id = form.type_id.data if form.validate_on_submit() else request.args.get('type_id', type=int, default=0)
-    page = request.args.get('page', 1, type=int)
+    query = (Component.query
+             .filter_by(is_archived=False)
+             .outerjoin(ComponentType, Component.type_id == ComponentType.id)
+             .outerjoin(Housing,       Component.housing_id == Housing.id)
+             .outerjoin(Subgroup,      ComponentType.subgroup_id == Subgroup.id))
 
-    query = Component.query.filter_by(is_archived=False)
     if current_user.role == 'admin':
-        query = query.filter_by(created_by_id=current_user.id)
-    if search:
-        query = query.filter(
-            Component.name.ilike(f'%{search}%') | Component.manufacturer.ilike(f'%{search}%')
-        )
-    if type_id:
-        query = query.filter_by(type_id=type_id)
-    elif subgroup_id:
-        query = query.join(ComponentType).filter(ComponentType.subgroup_id == subgroup_id)
-    elif group_id:
-        query = query.join(ComponentType).join(Subgroup).filter(Subgroup.group_id == group_id)
+        query = query.filter(Component.created_by_id == current_user.id)
 
-    components = query.paginate(page=page, per_page=10)
+    if q:
+        query = query.filter(or_(
+            Component.name.ilike(f'%{q}%'),
+            Component.manufacturer.ilike(f'%{q}%'),
+            ComponentType.name.ilike(f'%{q}%'),
+            Housing.housing_name.ilike(f'%{q}%'),
+        ))
+    if type_id:
+        query = query.filter(Component.type_id == type_id)
+    elif subgroup_id:
+        query = query.filter(ComponentType.subgroup_id == subgroup_id)
+    elif group_id:
+        query = query.filter(Subgroup.group_id == group_id)
+
+    items = query.order_by(Component.name).all()
+
+    # Build display tree: group → subgroup → type → [items]
+    tree = {}
+    for item in items:
+        if not item.comp_type:
+            continue
+        g = item.comp_type.subgroup.group
+        s = item.comp_type.subgroup
+        t = item.comp_type
+        tree.setdefault(g, {}).setdefault(s, {}).setdefault(t, []).append(item)
+
+    # Sidebar counts (all non-archived visible to user)
+    all_q = Component.query.filter_by(is_archived=False)
+    if current_user.role == 'admin':
+        all_q = all_q.filter_by(created_by_id=current_user.id)
+    group_counts    = defaultdict(int)
+    subgroup_counts = defaultdict(int)
+    type_counts     = defaultdict(int)
+    for it in all_q.all():
+        if it.comp_type:
+            type_counts[it.comp_type.id] += 1
+            subgroup_counts[it.comp_type.subgroup_id] += 1
+            group_counts[it.comp_type.subgroup.group_id] += 1
+
+    groups    = Group.query.order_by(Group.name).all()
+    subgroups = Subgroup.query.order_by(Subgroup.name).all()
+    types     = ComponentType.query.order_by(ComponentType.name).all()
+
+    # SearchForm kept only for CSRF token (used in add-modal)
+    form = SearchForm()
+    form.group_id.choices    = [(0, 'Все группы')]    + [(g.id, g.name) for g in groups]
+    form.subgroup_id.choices = [(0, 'Все подгруппы')] + [(s.id, s.name) for s in subgroups]
+    form.type_id.choices     = [(0, 'Все типы')]      + [(t.id, t.name) for t in types]
+
     return render_template(
-        'components.html', components=components, form=form,
-        search=search, group_id=group_id, subgroup_id=subgroup_id, type_id=type_id,
+        'components.html',
+        items=items, tree=tree, q=q,
+        group_id=group_id, subgroup_id=subgroup_id, type_id=type_id,
+        groups=groups, subgroups=subgroups, types=types,
+        group_counts=group_counts, subgroup_counts=subgroup_counts, type_counts=type_counts,
+        form=form,
     )
+
+
+@components_bp.route('/components/view/<int:id>')
+@login_required
+def view(id):
+    if not (current_user.role == 'super_admin' or current_user.can_view_components):
+        flash('У вас нет прав для просмотра компонентов', 'error')
+        return redirect(url_for('components.index'))
+    component = Component.query.get_or_404(id)
+    recent_history = (ComponentHistory.query
+                      .filter_by(unique_id=component.unique_id)
+                      .order_by(ComponentHistory.timestamp.desc())
+                      .limit(5).all())
+    return render_template('component_view.html', component=component, recent_history=recent_history)
 
 
 @components_bp.route('/components/add', methods=['GET', 'POST'])
@@ -59,21 +116,23 @@ def add():
         return redirect(url_for('components.index'))
 
     form = ComponentForm()
-    group_id = request.form.get('group_id', type=int, default=0) or form.group_id.data
-    subgroup_id = request.form.get('subgroup_id', type=int, default=0) or form.subgroup_id.data
+    group_id = request.form.get('group_id', type=int) or 0
+    subgroup_id = request.form.get('subgroup_id', type=int) or 0
 
-    form.group_id.choices = [(0, 'Выберите группу')] + [(g.id, g.name) for g in Group.query.all()]
-    form.subgroup_id.choices = [(0, 'Выберите подгруппу')] + (
-        [(s.id, s.name) for s in Subgroup.query.filter_by(group_id=group_id).all()] if group_id else []
-    )
-    form.type_id.choices = [(0, 'Выберите тип')] + (
-        [(t.id, t.name) for t in ComponentType.query.filter_by(subgroup_id=subgroup_id).all()] if subgroup_id else []
-    )
+    all_groups = Group.query.all()
+    all_subgroups = Subgroup.query.filter_by(group_id=group_id).all() if group_id else Subgroup.query.all()
+    all_types = ComponentType.query.filter_by(subgroup_id=subgroup_id).all() if subgroup_id else ComponentType.query.all()
+    subgroup = Subgroup.query.get(subgroup_id) if subgroup_id else None
+
+    form.group_id.choices = [(0, 'Выберите группу')] + [(g.id, g.name) for g in all_groups]
+    form.subgroup_id.choices = [(0, 'Выберите подгруппу')] + [(s.id, s.name) for s in all_subgroups]
+    form.type_id.choices = [(0, 'Выберите тип')] + [(t.id, t.name) for t in all_types]
     form.housing_id.choices = [(h.id, h.housing_name) for h in Housing.query.all()]
-    form.unit.choices = (
-        [(u, u) for u in json.loads(Subgroup.query.get(subgroup_id).units_schema)]
-        if subgroup_id else []
-    ) + [('', 'Выберите единицу')]
+    unit_choices = [(u, u) for u in json.loads(subgroup.units_schema)] if subgroup else []
+    submitted_unit = request.form.get('unit', '')
+    if submitted_unit and (submitted_unit,) not in [(u[0],) for u in unit_choices]:
+        unit_choices.append((submitted_unit, submitted_unit))
+    form.unit.choices = unit_choices + [('', 'Выберите единицу')]
 
     if form.validate_on_submit():
         if form.group_id.data == 0 or form.subgroup_id.data == 0 or form.type_id.data == 0 or not form.unit.data:
@@ -128,21 +187,23 @@ def edit(id):
         return redirect(url_for('components.index'))
 
     form = ComponentForm()
-    group_id = request.form.get('group_id', type=int, default=0) or (component.comp_type.subgroup.group_id if component else 0)
-    subgroup_id = request.form.get('subgroup_id', type=int, default=0) or (component.comp_type.subgroup_id if component else 0)
+    group_id = request.form.get('group_id', type=int) or component.comp_type.subgroup.group_id
+    subgroup_id = request.form.get('subgroup_id', type=int) or component.comp_type.subgroup_id
 
-    form.group_id.choices = [(0, 'Выберите группу')] + [(g.id, g.name) for g in Group.query.all()]
-    form.subgroup_id.choices = [(0, 'Выберите подгруппу')] + (
-        [(s.id, s.name) for s in Subgroup.query.filter_by(group_id=group_id).all()] if group_id else []
-    )
-    form.type_id.choices = [(0, 'Выберите тип')] + (
-        [(t.id, t.name) for t in ComponentType.query.filter_by(subgroup_id=subgroup_id).all()] if subgroup_id else []
-    )
+    all_groups = Group.query.all()
+    all_subgroups = Subgroup.query.filter_by(group_id=group_id).all() if group_id else Subgroup.query.all()
+    all_types = ComponentType.query.filter_by(subgroup_id=subgroup_id).all() if subgroup_id else ComponentType.query.all()
+    subgroup = Subgroup.query.get(subgroup_id) if subgroup_id else None
+
+    form.group_id.choices = [(0, 'Выберите группу')] + [(g.id, g.name) for g in all_groups]
+    form.subgroup_id.choices = [(0, 'Выберите подгруппу')] + [(s.id, s.name) for s in all_subgroups]
+    form.type_id.choices = [(0, 'Выберите тип')] + [(t.id, t.name) for t in all_types]
     form.housing_id.choices = [(h.id, h.housing_name) for h in Housing.query.all()]
-    form.unit.choices = (
-        [(u, u) for u in json.loads(Subgroup.query.get(subgroup_id).units_schema)]
-        if subgroup_id else []
-    ) + [('', 'Выберите единицу')]
+    unit_choices = [(u, u) for u in json.loads(subgroup.units_schema)] if subgroup else []
+    submitted_unit = request.form.get('unit', '') or component.unit
+    if submitted_unit and (submitted_unit,) not in [(u[0],) for u in unit_choices]:
+        unit_choices.append((submitted_unit, submitted_unit))
+    form.unit.choices = unit_choices + [('', 'Выберите единицу')]
 
     if form.validate_on_submit():
         if form.group_id.data == 0 or form.subgroup_id.data == 0 or form.type_id.data == 0 or not form.unit.data:

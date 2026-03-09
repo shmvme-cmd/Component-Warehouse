@@ -1,26 +1,40 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block content %}
-<div class="container mt-4" style="max-width:900px">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-            <i class="bi bi-{{ 'plus-circle' if action == 'add' else 'pencil-square' }} me-2 text-primary"></i>
-            {{ 'Добавить компонент' if action == 'add' else 'Редактировать компонент' }}
-        </h2>
-        <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Назад
-        </a>
-    </div>
+<div style="max-width:900px">
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>
+        <i class="bi bi-{{ 'plus-circle' if action == 'add' else 'pencil-square' }} me-2 text-primary"></i>
+        {{ 'Добавить компонент' if action == 'add' else 'Редактировать компонент' }}
+    </h2>
+    <a href="{{ url_for('components.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Назад
+    </a>
+</div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             {% endfor %}
         {% endif %}
     {% endwith %}
+
+    {% if form.errors %}
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <strong>Ошибки валидации:</strong>
+            <ul class="mb-0 mt-1">
+                {% for field, errors in form.errors.items() %}
+                    {% for error in errors %}
+                        <li>{{ form[field].label.text }}: {{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endif %}
 
     <div class="card">
         <div class="card-body">
@@ -51,15 +65,33 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
                         <label class="form-label">{{ form.group_id.label }}</label>
-                        {{ form.group_id(class="form-select", id="group_id") }}
+                        <div class="input-group">
+                            {{ form.group_id(class="form-select", id="group_id") }}
+                            <button type="button" class="btn btn-outline-primary" title="Создать группу"
+                                    data-bs-toggle="modal" data-bs-target="#modalGroup">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">{{ form.subgroup_id.label }}</label>
-                        {{ form.subgroup_id(class="form-select", id="subgroup_id") }}
+                        <div class="input-group">
+                            {{ form.subgroup_id(class="form-select", id="subgroup_id") }}
+                            <button type="button" class="btn btn-outline-primary" title="Создать подгруппу"
+                                    data-bs-toggle="modal" data-bs-target="#modalSubgroup">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">{{ form.type_id.label }}</label>
-                        {{ form.type_id(class="form-select", id="type_id") }}
+                        <div class="input-group">
+                            {{ form.type_id(class="form-select", id="type_id") }}
+                            <button type="button" class="btn btn-outline-primary" title="Создать тип"
+                                    data-bs-toggle="modal" data-bs-target="#modalType">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -72,11 +104,18 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-4">
                         <label class="form-label">{{ form.housing_id.label }}</label>
-                        {{ form.housing_id(class="form-select") }}
+                        <div class="input-group">
+                            {{ form.housing_id(class="form-select") }}
+                            <button type="button" class="btn btn-outline-primary" title="Создать корпус"
+                                    data-bs-toggle="modal" data-bs-target="#modalHousing">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">{{ form.nominal_value.label }}</label>
-                        {{ form.nominal_value(class="form-control") }}
+                        {{ form.nominal_value(class="form-control",
+                            value=(form.nominal_value.data | fnum if form.nominal_value.data is not none else '')) }}
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">{{ form.unit.label }}</label>
@@ -128,61 +167,234 @@
         </div>
     </div>
 </div>
+
+<!-- ── Модал: Новая группа ── -->
+<div class="modal fade" id="modalGroup" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Новая группа</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="text" id="newGroupName" class="form-control" placeholder="Название группы">
+                <div id="newGroupErr" class="text-danger small mt-1"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="createGroup()">Создать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Модал: Новая подгруппа ── -->
+<div class="modal fade" id="modalSubgroup" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Новая подгруппа</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Группа</label>
+                    <select id="newSubgroupGroup" class="form-select"></select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Название</label>
+                    <input type="text" id="newSubgroupName" class="form-control" placeholder="Название подгруппы">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Единицы измерения <span class="text-muted">(через запятую)</span></label>
+                    <input type="text" id="newSubgroupUnits" class="form-control" placeholder="шт, г, кг">
+                </div>
+                <div id="newSubgroupErr" class="text-danger small mt-1"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="createSubgroup()">Создать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Модал: Новый тип ── -->
+<div class="modal fade" id="modalType" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Новый тип</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label">Подгруппа</label>
+                    <select id="newTypeSubgroup" class="form-select"></select>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Название</label>
+                    <input type="text" id="newTypeName" class="form-control" placeholder="Название типа">
+                </div>
+                <div id="newTypeErr" class="text-danger small mt-1"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="createType()">Создать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Модал: Новый корпус ── -->
+<div class="modal fade" id="modalHousing" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Новый корпус</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="text" id="newHousingName" class="form-control" placeholder="Название корпуса">
+                <div id="newHousingErr" class="text-danger small mt-1"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" onclick="createHousing()">Создать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-document.getElementById('group_id').addEventListener('change', function() {
+/* ─── Каскадные select (группа → подгруппа → тип/единицы) ─── */
+document.getElementById('group_id').addEventListener('change', function () {
     const groupId = this.value;
     const subgroupSelect = document.getElementById('subgroup_id');
     const typeSelect = document.getElementById('type_id');
     const unitSelect = document.getElementById('unit');
-    
     subgroupSelect.innerHTML = '<option value="0">Выберите подгруппу</option>';
     typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
     unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
-    
-    if (groupId) {
+    if (groupId && groupId !== '0') {
         fetch(`/get_subgroups/${groupId}`)
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(subgroup => {
-                    const option = document.createElement('option');
-                    option.value = subgroup.id;
-                    option.textContent = subgroup.name;
-                    subgroupSelect.appendChild(option);
-                });
-            });
+            .then(r => r.json())
+            .then(data => data.forEach(s => addOption(subgroupSelect, s.id, s.name)));
     }
 });
 
-document.getElementById('subgroup_id').addEventListener('change', function() {
+document.getElementById('subgroup_id').addEventListener('change', function () {
     const subgroupId = this.value;
     const typeSelect = document.getElementById('type_id');
     const unitSelect = document.getElementById('unit');
-    
     typeSelect.innerHTML = '<option value="0">Выберите тип</option>';
     unitSelect.innerHTML = '<option value="">Выберите единицу</option>';
-    
-    if (subgroupId) {
+    if (subgroupId && subgroupId !== '0') {
         fetch(`/get_types/${subgroupId}`)
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(type => {
-                    const option = document.createElement('option');
-                    option.value = type.id;
-                    option.textContent = type.name;
-                    typeSelect.appendChild(option);
-                });
-            });
+            .then(r => r.json())
+            .then(data => data.forEach(t => addOption(typeSelect, t.id, t.name)));
         fetch(`/get_units/${subgroupId}`)
-            .then(response => response.json())
-            .then(data => {
-                data.forEach(unit => {
-                    const option = document.createElement('option');
-                    option.value = unit.unit;
-                    option.textContent = unit.unit;
-                    unitSelect.appendChild(option);
-                });
-            });
+            .then(r => r.json())
+            .then(data => data.forEach(u => addOption(unitSelect, u.unit, u.unit)));
     }
 });
+
+function addOption(sel, val, text, selected = false) {
+    const opt = document.createElement('option');
+    opt.value = val; opt.textContent = text;
+    if (selected) opt.selected = true;
+    sel.appendChild(opt);
+    return opt;
+}
+
+/* ─── Заполнить select подгрупп текущими вариантами при открытии модала ─── */
+document.getElementById('modalSubgroup').addEventListener('show.bs.modal', function () {
+    const groupSel = document.getElementById('group_id');
+    const newSel = document.getElementById('newSubgroupGroup');
+    newSel.innerHTML = '';
+    Array.from(groupSel.options).forEach(o => {
+        if (o.value && o.value !== '0') {
+            const opt = document.createElement('option');
+            opt.value = o.value; opt.textContent = o.text;
+            if (o.value === groupSel.value) opt.selected = true;
+            newSel.appendChild(opt);
+        }
+    });
+});
+
+document.getElementById('modalType').addEventListener('show.bs.modal', function () {
+    const subSel = document.getElementById('subgroup_id');
+    const newSel = document.getElementById('newTypeSubgroup');
+    newSel.innerHTML = '';
+    Array.from(subSel.options).forEach(o => {
+        if (o.value && o.value !== '0') {
+            const opt = document.createElement('option');
+            opt.value = o.value; opt.textContent = o.text;
+            if (o.value === subSel.value) opt.selected = true;
+            newSel.appendChild(opt);
+        }
+    });
+});
+
+/* ─── API-запросы создания ─── */
+async function apiPost(url, body) {
+    const r = await fetch(url, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    });
+    return r.json();
+}
+
+async function createGroup() {
+    const name = document.getElementById('newGroupName').value.trim();
+    const err  = document.getElementById('newGroupErr');
+    err.textContent = '';
+    if (!name) { err.textContent = 'Введите название'; return; }
+    const data = await apiPost('/api/create_group', {name});
+    if (data.error) { err.textContent = data.error; return; }
+    addOption(document.getElementById('group_id'), data.id, data.name, true);
+    document.getElementById('group_id').dispatchEvent(new Event('change'));
+    bootstrap.Modal.getInstance(document.getElementById('modalGroup')).hide();
+    document.getElementById('newGroupName').value = '';
+}
+
+async function createSubgroup() {
+    const name     = document.getElementById('newSubgroupName').value.trim();
+    const group_id = parseInt(document.getElementById('newSubgroupGroup').value);
+    const units    = document.getElementById('newSubgroupUnits').value.trim();
+    const err      = document.getElementById('newSubgroupErr');
+    err.textContent = '';
+    if (!name) { err.textContent = 'Введите название'; return; }
+    if (!group_id) { err.textContent = 'Выберите группу'; return; }
+    const data = await apiPost('/api/create_subgroup', {name, group_id, units});
+    if (data.error) { err.textContent = data.error; return; }
+    // Если в форме выбрана та же группа — добавляем подгруппу в список
+    const groupSel = document.getElementById('group_id');
+    if (parseInt(groupSel.value) === group_id) {
+        addOption(document.getElementById('subgroup_id'), data.id, data.name, true);
+        document.getElementById('subgroup_id').dispatchEvent(new Event('change'));
+    }
+    bootstrap.Modal.getInstance(document.getElementById('modalSubgroup')).hide();
+    document.getElementById('newSubgroupName').value = '';
+    document.getElementById('newSubgroupUnits').value = '';
+}
+
+async function createType() {
+    const name        = document.getElementById('newTypeName').value.trim();
+    const subgroup_id = parseInt(document.getElementById('newTypeSubgroup').value);
+    const err         = document.getElementById('newTypeErr');
+    err.textContent = '';
+    if (!name) { err.textContent = 'Введите название'; return; }
+    if (!subgroup_id) { err.textContent = 'Выберите подгруппу'; return; }
+    const data = await apiPost('/api/create_type', {name, subgroup_id});
+    if (data.error) { err.textContent = data.error; return; }
+    const subSel = document.getElementById('subgroup_id');
+    if (parseInt(subSel.value) === subgroup_id) {
+        addOption(document.getElementById('type_id'), data.id, data.name, true);
+    }
+    bootstrap.Modal.getInstance(document.getElementById('modalType')).hide();
+    document.getElementById('newTypeName').value = '';
+}
+
+async function createHousing() {
+    const name = document.getElementById('newHousingName').value.trim();
+    const err  = document.getElementById('newHousingErr');
+    err.textContent = '';
+    if (!name) { err.textContent = 'Введите название'; return; }
+    const data = await apiPost('/api/create_housing', {name});
+    if (data.error) { err.textContent = data.error; return; }
+    addOption(document.querySelector('select[name="housing_id"]'), data.id, data.name, true);
+    bootstrap.Modal.getInstance(document.getElementById('modalHousing')).hide();
+    document.getElementById('newHousingName').value = '';
+}
 </script>
 {% endblock %}
